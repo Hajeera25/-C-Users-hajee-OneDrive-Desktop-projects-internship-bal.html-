@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Expense Tracker</title>
+    <!-- Load Lucide Icons for aesthetic vectors -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Styles for better visual feedback */
+        .income-amount {
+            color: #10b981; /* Tailwind emerald-500 */
+        }
+        .expense-amount {
+            color: #ef4444; /* Tailwind red-500 */
+        }
+        .transaction-item {
+            transition: all 0.3s ease;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary-green': '#10b981',
+                        'primary-red': '#ef4444',
+                        'bg-light': '#f9fafb',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-bg-light min-h-screen flex items-center justify-center p-4 font-sans">
+
+    <!-- Main Container -->
+    <div class="w-full max-w-md bg-white rounded-xl shadow-2xl p-6 md:p-8 border border-gray-100">
+
+        <h1 class="text-3xl font-extrabold text-gray-800 mb-6 text-center">Personal Expense Tracker</h1>
+
+        <!-- Current Balance Section -->
+        <div class="text-center mb-6 p-4 bg-gray-50 rounded-lg shadow-inner">
+            <h2 class="text-lg font-medium text-gray-500">Current Balance</h2>
+            <p id="balance" class="text-4xl font-bold mt-1 text-gray-800">$0.00</p>
+        </div>
+
+        <!-- Feedback Message Area -->
+        <div id="feedback-message" class="hidden p-3 mb-4 text-sm rounded-lg text-center font-medium" role="alert"></div>
+
+        <!-- Add New Transaction Form -->
+        <div class="mb-8">
+            <h3 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">Add New Transaction</h3>
+            <form id="transactionForm" class="space-y-4">
+                
+                <!-- Transaction Name -->
+                <div>
+                    <label for="transactionName" class="block text-sm font-medium text-gray-600 mb-1">Name</label>
+                    <input type="text" id="transactionName" placeholder="Enter description (e.g., Salary, Groceries)" required
+                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-green focus:border-primary-green outline-none">
+                </div>
+
+                <!-- Transaction Amount -->
+                <div>
+                    <label for="transactionAmount" class="block text-sm font-medium text-gray-600 mb-1">Amount ($)</label>
+                    <input type="number" id="transactionAmount" placeholder="Enter amount" required
+                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-green focus:border-primary-green outline-none" step="0.01">
+                </div>
+
+                <!-- Transaction Type (Dropdown) -->
+                <div>
+                    <label for="transactionType" class="block text-sm font-medium text-gray-600 mb-1">Type</label>
+                    <select id="transactionType" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-green focus:border-primary-green outline-none bg-white">
+                        <option value="income">Income (+$)</option>
+                        <option value="expense">Expense (-$)</option>
+                    </select>
+                </div>
+
+                <!-- Add Button -->
+                <button type="submit" class="w-full bg-primary-green text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition duration-150 shadow-md">
+                    Add Transaction
+                </button>
+            </form>
+        </div>
+
+        <!-- Transaction History -->
+        <div>
+            <h3 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">Transaction History</h3>
+            <ul id="transactionList" class="space-y-3">
+                <!-- Transactions will be injected here -->
+                <li id="no-transactions" class="text-center text-gray-500 italic p-4 bg-gray-50 rounded-lg">No transactions yet. Add one above!</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- JavaScript for Functionality -->
+    <script>
+        // --- State and Constants ---
+        const balanceElement = document.getElementById('balance');
+        const transactionForm = document.getElementById('transactionForm');
+        const transactionList = document.getElementById('transactionList');
+        const feedbackMessage = document.getElementById('feedback-message');
+        const noTransactionsMessage = document.getElementById('no-transactions');
+        
+        // Load transactions from local storage or initialize as an empty array
+        let transactions = JSON.parse(localStorage.getItem('expenseTrackerTransactions')) || [];
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', init);
+        transactionForm.addEventListener('submit', addTransaction);
+
+        /**
+         * Initializes the application by loading data and updating the UI.
+         */
+        function init() {
+            updateUI();
+            // Render all Lucide icons (for delete buttons)
+            lucide.createIcons(); 
+        }
+
+        /**
+         * Updates the balance display and redraws the transaction list.
+         */
+        function updateUI() {
+            transactionList.innerHTML = ''; // Clear existing list
+            
+            if (transactions.length === 0) {
+                if (!noTransactionsMessage) {
+                    // Create and show 'No transactions' message if it doesn't exist
+                    const li = document.createElement('li');
+                    li.id = 'no-transactions';
+                    li.className = 'text-center text-gray-500 italic p-4 bg-gray-50 rounded-lg';
+                    li.textContent = 'No transactions yet. Add one above!';
+                    transactionList.appendChild(li);
+                } else {
+                    noTransactionsMessage.classList.remove('hidden');
+                }
+            } else {
+                if (noTransactionsMessage) {
+                    noTransactionsMessage.classList.add('hidden');
+                }
+            }
+
+            let totalBalance = 0;
+
+            transactions.forEach(transaction => {
+                // Calculate balance
+                totalBalance += transaction.amount;
+                
+                // Determine CSS classes and sign for display
+                const isIncome = transaction.type === 'income';
+                const amountClass = isIncome ? 'income-amount' : 'expense-amount';
+                const sign = isIncome ? '+' : '-';
+                const displayAmount = Math.abs(transaction.amount).toFixed(2);
+                
+                // Create list item for transaction
+                const listItem = document.createElement('li');
+                listItem.className = `transaction-item flex justify-between items-center p-3 rounded-lg border shadow-sm ${isIncome ? 'border-primary-green/30 bg-green-50' : 'border-primary-red/30 bg-red-50'}`;
+                listItem.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-gray-700 truncate">${transaction.name}</p>
+                        <span class="text-xs font-normal text-gray-500 capitalize">${transaction.type}</span>
+                    </div>
+                    
+                    <div class="flex items-center space-x-3 ml-4">
+                        <span class="font-semibold text-lg ${amountClass}">${sign}$${displayAmount}</span>
+                        <button onclick="deleteTransaction(${transaction.id})" 
+                                class="delete-btn text-gray-400 hover:text-primary-red transition duration-150 p-1 rounded-full hover:bg-white" 
+                                aria-label="Delete transaction ${transaction.name}">
+                            <i data-lucide="trash-2" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                `;
+                transactionList.appendChild(listItem);
+            });
+
+            // Update the main balance display
+            balanceElement.textContent = `$${totalBalance.toFixed(2)}`;
+            
+            // Set the color of the main balance display based on total balance
+            balanceElement.classList.remove('text-primary-green', 'text-primary-red', 'text-gray-800');
+            if (totalBalance > 0) {
+                balanceElement.classList.add('text-primary-green');
+            } else if (totalBalance < 0) {
+                balanceElement.classList.add('text-primary-red');
+            } else {
+                balanceElement.classList.add('text-gray-800');
+            }
+
+            // Re-render Lucide icons after DOM update
+            lucide.createIcons();
+            updateLocalStorage();
+        }
+
+        /**
+         * Shows a temporary feedback message to the user.
+         * @param {string} message - The message text.
+         * @param {string} type - 'error' or 'success'.
+         */
+        function showFeedback(message, type) {
+            feedbackMessage.textContent = message;
+            feedbackMessage.classList.remove('hidden', 'bg-red-100', 'border-red-400', 'text-red-700', 'bg-green-100', 'border-green-400', 'text-green-700');
+
+            if (type === 'error') {
+                feedbackMessage.classList.add('bg-red-100', 'border-red-400', 'text-red-700', 'border');
+            } else if (type === 'success') {
+                feedbackMessage.classList.add('bg-green-100', 'border-green-400', 'text-green-700', 'border');
+            }
+            
+            setTimeout(() => {
+                feedbackMessage.classList.add('hidden');
+            }, 3000); // Hide after 3 seconds
+        }
+
+        /**
+         * Handles form submission to add a new transaction.
+         * @param {Event} e - The form submission event.
+         */
+        function addTransaction(e) {
+            e.preventDefault();
+
+            const nameInput = document.getElementById('transactionName');
+            const amountInput = document.getElementById('transactionAmount');
+            const typeInput = document.getElementById('transactionType');
+
+            const name = nameInput.value.trim();
+            let amount = parseFloat(amountInput.value);
+            const type = typeInput.value;
+
+            // 1. Validation and Error Handling
+            if (!name || isNaN(amount) || amount === 0) {
+                showFeedback('Please ensure the name is filled and the amount is a valid, non-zero number.', 'error');
+                return;
+            }
+
+            // 2. Amount Conversion (positive amount from input, converted based on type)
+            // Ensure amount is positive, then apply sign based on type
+            amount = Math.abs(amount);
+            if (type === 'expense') {
+                amount = -amount;
+            }
+
+            // 3. Create new transaction object
+            const newTransaction = {
+                id: generateID(),
+                name: name,
+                amount: amount,
+                type: type
+            };
+
+            // 4. Add to state and update UI
+            transactions.push(newTransaction);
+            updateUI();
+            
+            // 5. Clear form and provide feedback
+            nameInput.value = '';
+            amountInput.value = '';
+            showFeedback(`Transaction "${newTransaction.name}" added successfully!`, 'success');
+        }
+
+        /**
+         * Removes a transaction by its ID.
+         * @param {number} id - The unique ID of the transaction to delete.
+         */
+        function deleteTransaction(id) {
+            transactions = transactions.filter(transaction => transaction.id !== id);
+            showFeedback('Transaction deleted successfully.', 'success');
+            updateUI();
+        }
+
+        /**
+         * Saves the current transactions array to Local Storage.
+         */
+        function updateLocalStorage() {
+            localStorage.setItem('expenseTrackerTransactions', JSON.stringify(transactions));
+        }
+
+        /**
+         * Generates a simple unique ID for transactions.
+         * In a real app, this would come from a database, but crypto.randomUUID is robust for Local Storage.
+         */
+        function generateID() {
+            // Use a unique number or string. Using current time + random number for simplicity.
+            return Date.now() + Math.floor(Math.random() * 100000);
+        }
+    </script>
+</body>
+</html>
