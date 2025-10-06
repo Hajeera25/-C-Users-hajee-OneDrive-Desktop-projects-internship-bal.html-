@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Quiz App</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the app */
+        .quiz-card {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .choice-btn {
+            transition: background-color 0.2s, border-color 0.2s, transform 0.1s;
+            cursor: pointer;
+            text-align: left;
+        }
+        .choice-btn:hover:not([disabled]):not(.correct):not(.incorrect) {
+            background-color: #f3f4f6; /* gray-100 */
+        }
+        .choice-btn:active:not([disabled]):not(.correct):not(.incorrect) {
+            transform: scale(0.99);
+        }
+        /* State colors applied by JS */
+        .selected {
+            border-color: #3b82f6; /* blue-500 */
+            background-color: #eff6ff; /* blue-50 */
+        }
+        .correct {
+            background-color: #10b981; /* emerald-500 */
+            color: white;
+            border-color: #10b981;
+        }
+        .incorrect {
+            background-color: #ef4444; /* red-500 */
+            color: white;
+            border-color: #ef4444;
+        }
+        .nav-btn {
+            transition: background-color 0.2s, transform 0.1s;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4 font-sans">
+
+    <!-- Main Quiz Container -->
+    <div id="app-container" class="w-full max-w-2xl">
+
+        <!-- Quiz Card -->
+        <div id="quiz-card" class="quiz-card bg-white p-6 md:p-10 rounded-xl">
+            <h1 class="text-3xl font-extrabold text-gray-900 mb-6 text-center">Tech Trivia Challenge</h1>
+
+            <!-- Progress Indicator -->
+            <div id="progress-text" class="text-sm font-medium text-gray-500 mb-6 text-center"></div>
+
+            <!-- Question and Choices -->
+            <div id="quiz-content">
+                <p id="question" class="text-xl font-semibold text-gray-800 mb-6"></p>
+
+                <div id="choices-container" class="space-y-3">
+                    <!-- Choices will be injected here -->
+                </div>
+
+                <!-- Navigation and Status -->
+                <div class="mt-8 flex justify-between items-center">
+                    <div id="feedback-message" class="text-lg font-medium"></div>
+                    <button id="nav-button" class="nav-btn bg-blue-600 text-white py-3 px-8 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50" disabled>
+                        Submit Answer
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results Section (Initially Hidden) -->
+            <div id="results-container" class="hidden text-center">
+                <h2 class="text-4xl font-extrabold text-blue-600 mb-4">Quiz Complete!</h2>
+                <p class="text-2xl font-semibold text-gray-800 mb-8">Your final score: <span id="final-score" class="text-blue-600"></span></p>
+
+                <div id="review-summary" class="text-left space-y-4 mb-10 p-4 border border-gray-200 rounded-lg">
+                    <p class="text-lg font-bold text-gray-700">Review Summary:</p>
+                    <!-- Summary details injected here -->
+                </div>
+
+                <button id="restart-button" class="nav-btn bg-gray-700 text-white py-3 px-8 rounded-lg font-semibold hover:bg-gray-800">
+                    Restart Quiz
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- Quiz Data ---
+        // Array of question objects, including the question, 4 choices, and the correct answer index.
+        const quizData = [
+            {
+                question: "What language is primarily used for styling web pages?",
+                choices: ["JavaScript", "Python", "CSS", "HTML"],
+                correctAnswerIndex: 2
+            },
+            {
+                question: "Which keyword is used to declare a constant variable in JavaScript?",
+                choices: ["var", "let", "const", "static"],
+                correctAnswerIndex: 2
+            },
+            {
+                question: "What does DOM stand for?",
+                choices: ["Document Object Model", "Data Object Module", "Digital Optimization Method", "Dynamic Output Manager"],
+                correctAnswerIndex: 0
+            },
+            {
+                question: "Which of these is a JavaScript framework?",
+                choices: ["Django", "React", "Flask", "Laravel"],
+                correctAnswerIndex: 1
+            },
+            {
+                question: "What HTML tag is used to define an internal style sheet?",
+                choices: ["<script>", "<style>", "<css>", "<link>"],
+                correctAnswerIndex: 1
+            },
+            // NEW QUESTIONS ADDED BELOW:
+            {
+                question: "Which tag is used to define a table header in HTML?",
+                choices: ["<th>", "<td>", "<tr>", "<header>"],
+                correctAnswerIndex: 0 // (a) <th>
+            },
+            {
+                question: "What does the <link> tag define in an HTML document?",
+                choices: ["A link to an external resource", "A hyperlink to another page", "A link to a CSS file", "A link to a JavaScript file"],
+                correctAnswerIndex: 0 // (a) A link to an external resource (most technically accurate)
+            },
+            {
+                question: "What does the <meta> tag define in an HTML document?",
+                choices: ["Metadata about the document", "A section of the document", "A link to an external resource", "A paragraph of text"],
+                correctAnswerIndex: 0 // (a) Metadata about the document
+            },
+            {
+                question: "What is the correct way to add a background color in HTML (using modern inline styling)?",
+                choices: ["<body style=\"background-color:yellow;\">", "<body bgcolor=\"yellow\">", "<background color=\"yellow\">", "<body color=\"yellow\">"],
+                correctAnswerIndex: 0 // (a) <body style="background-color:yellow;">
+            },
+            {
+                question: "What does the <noscript> tag do?",
+                choices: ["Provides alternative content when JavaScript is disabled", "Defines a section of non-scriptable content", "Prevents scripts from running", "Defines a script that does not execute"],
+                correctAnswerIndex: 0 // (a) Provides alternative content when JavaScript is disabled
+            }
+        ];
+
+        // --- State Variables ---
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let userAnswers = []; // Stores { questionIndex, selectedIndex, isCorrect }
+        let selectedAnswerIndex = null;
+        let isAnswerSubmitted = false;
+
+        // --- DOM Elements ---
+        const quizCard = document.getElementById('quiz-card');
+        const quizContent = document.getElementById('quiz-content');
+        const questionElement = document.getElementById('question');
+        const choicesContainer = document.getElementById('choices-container');
+        const navButton = document.getElementById('nav-button');
+        const progressText = document.getElementById('progress-text');
+        const resultsContainer = document.getElementById('results-container');
+        const finalScoreElement = document.getElementById('final-score');
+        const reviewSummary = document.getElementById('review-summary');
+        const restartButton = document.getElementById('restart-button');
+        const feedbackMessage = document.getElementById('feedback-message');
+
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', init);
+        navButton.addEventListener('click', handleNavButtonClick);
+        restartButton.addEventListener('click', restartQuiz);
+
+        /**
+         * Initializes the quiz state and starts the first question.
+         */
+        function init() {
+            // Reset state
+            currentQuestionIndex = 0;
+            score = 0;
+            userAnswers = [];
+            selectedAnswerIndex = null;
+            isAnswerSubmitted = false;
+
+            // Show quiz content and hide results
+            quizContent.classList.remove('hidden');
+            resultsContainer.classList.add('hidden');
+            
+            // Set initial navigation button text and state
+            navButton.textContent = 'Submit Answer';
+            navButton.disabled = true;
+
+            loadQuestion();
+        }
+
+        /**
+         * Renders the current question and its choices to the DOM.
+         */
+        function loadQuestion() {
+            if (currentQuestionIndex >= quizData.length) {
+                showResults();
+                return;
+            }
+
+            const currentQuestion = quizData[currentQuestionIndex];
+
+            // Reset UI for new question
+            choicesContainer.innerHTML = '';
+            questionElement.textContent = currentQuestion.question;
+            feedbackMessage.textContent = '';
+            isAnswerSubmitted = false;
+            selectedAnswerIndex = null;
+            navButton.textContent = 'Submit Answer';
+            navButton.disabled = true;
+
+            // Update progress text
+            progressText.textContent = `Question ${currentQuestionIndex + 1} of ${quizData.length}`;
+
+            // Create choice buttons
+            currentQuestion.choices.forEach((choice, index) => {
+                const button = document.createElement('button');
+                button.textContent = choice;
+                button.className = 'choice-btn w-full p-4 border-2 border-gray-200 rounded-lg text-gray-700 font-medium';
+                button.dataset.index = index;
+                button.addEventListener('click', handleChoiceClick);
+                choicesContainer.appendChild(button);
+            });
+        }
+
+        /**
+         * Handles the click event on an answer choice.
+         * @param {Event} event - The click event object.
+         */
+        function handleChoiceClick(event) {
+            if (isAnswerSubmitted) return;
+
+            // Remove 'selected' class from all buttons
+            Array.from(choicesContainer.children).forEach(btn => {
+                btn.classList.remove('selected', 'border-blue-500', 'bg-blue-50');
+            });
+
+            // Add 'selected' class to the clicked button
+            const clickedButton = event.target;
+            clickedButton.classList.add('selected', 'border-blue-500', 'bg-blue-50');
+
+            selectedAnswerIndex = parseInt(clickedButton.dataset.index);
+            navButton.disabled = false; // Enable Submit button
+        }
+
+        /**
+         * Manages the Submit -> Next -> View Results logic.
+         */
+        function handleNavButtonClick() {
+            if (currentQuestionIndex >= quizData.length) {
+                // This case should ideally not be reached if showResults is called correctly
+                return;
+            }
+
+            // Phase 1: Submit Answer
+            if (!isAnswerSubmitted) {
+                submitAnswer();
+            }
+            // Phase 2: Next Question/View Results
+            else {
+                nextQuestion();
+            }
+        }
+
+        /**
+         * Validates the selected answer, updates the score, and provides visual feedback.
+         */
+        function submitAnswer() {
+            if (selectedAnswerIndex === null) return; // Should not happen if button is enabled correctly
+
+            isAnswerSubmitted = true;
+            navButton.disabled = false; // Keep button enabled for navigation
+            const currentQuestion = quizData[currentQuestionIndex];
+            const correctIndex = currentQuestion.correctAnswerIndex;
+            let isCorrect = (selectedAnswerIndex === correctIndex);
+            
+            // Track answer for results summary
+            userAnswers.push({
+                questionIndex: currentQuestionIndex,
+                selectedIndex: selectedAnswerIndex,
+                isCorrect: isCorrect
+            });
+
+            if (isCorrect) {
+                score++;
+                feedbackMessage.textContent = 'Correct!';
+                feedbackMessage.classList.remove('text-red-500');
+                feedbackMessage.classList.add('text-green-600');
+            } else {
+                feedbackMessage.textContent = 'Incorrect!';
+                feedbackMessage.classList.remove('text-green-600');
+                feedbackMessage.classList.add('text-red-500');
+            }
+
+            // Apply visual feedback and disable all choices
+            Array.from(choicesContainer.children).forEach((btn, index) => {
+                btn.disabled = true;
+                btn.classList.remove('selected', 'border-blue-500', 'bg-blue-50');
+
+                if (index === correctIndex) {
+                    btn.classList.add('correct');
+                } else if (index === selectedAnswerIndex) {
+                    btn.classList.add('incorrect');
+                } else {
+                    btn.classList.add('bg-gray-100');
+                }
+            });
+
+            // Update navigation button text
+            if (currentQuestionIndex === quizData.length - 1) {
+                navButton.textContent = 'View Results';
+                navButton.classList.remove('bg-blue-600');
+                navButton.classList.add('bg-green-600', 'hover:bg-green-700');
+            } else {
+                navButton.textContent = 'Next Question';
+            }
+        }
+
+        /**
+         * Moves to the next question or shows results if the quiz is finished.
+         */
+        function nextQuestion() {
+            currentQuestionIndex++;
+            
+            // Reset Submit/Next button styling
+            navButton.classList.remove('bg-green-600', 'hover:bg-green-700');
+            navButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            
+            if (currentQuestionIndex < quizData.length) {
+                loadQuestion();
+            } else {
+                showResults();
+            }
+        }
+
+        /**
+         * Hides the quiz and displays the final results page.
+         */
+        function showResults() {
+            quizContent.classList.add('hidden');
+            resultsContainer.classList.remove('hidden');
+            
+            // Display final score
+            finalScoreElement.textContent = `${score} out of ${quizData.length}`;
+
+            // Build review summary
+            reviewSummary.innerHTML = ''; // Clear previous summary
+            
+            userAnswers.forEach((answer, index) => {
+                const questionData = quizData[answer.questionIndex];
+                const summaryItem = document.createElement('div');
+                
+                const statusColor = answer.isCorrect ? 'text-green-600' : 'text-red-600';
+                const statusIcon = answer.isCorrect ? '✔' : '✘';
+                const statusText = answer.isCorrect ? 'Correct' : 'Incorrect';
+                
+                // Get the user's selected choice and the actual correct choice text
+                const selectedChoiceText = questionData.choices[answer.selectedIndex];
+                const correctChoiceText = questionData.choices[questionData.correctAnswerIndex];
+
+                summaryItem.className = 'p-3 rounded-lg border';
+                summaryItem.innerHTML = `
+                    <p class="font-bold text-gray-800 mb-1">${index + 1}. ${questionData.question}</p>
+                    <p class="${statusColor} font-semibold">${statusIcon} You Answered: ${selectedChoiceText} <span class="text-gray-500">(${statusText})</span></p>
+                    ${!answer.isCorrect ? `<p class="text-green-600 font-medium mt-1">Correct Answer: ${correctChoiceText}</p>` : ''}
+                `;
+                reviewSummary.appendChild(summaryItem);
+            });
+        }
+
+        /**
+         * Resets the quiz and starts over.
+         */
+        function restartQuiz() {
+            init();
+        }
+    </script>
+</body>
+</html>
