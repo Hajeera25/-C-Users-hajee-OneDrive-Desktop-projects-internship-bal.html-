@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Functional To-Do List</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the app */
+        .completed .task-text {
+            text-decoration: line-through;
+            color: #9ca3af; /* gray-400 */
+        }
+        .task-item {
+            transition: all 0.2s ease-in-out;
+            transform-origin: center;
+        }
+        /* Custom focus ring for accessibility */
+        .focus-ring:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5); /* blue-500 with transparency */
+        }
+        /* Style the checkbox appearance for better visibility */
+        .task-checkbox {
+            appearance: none;
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 2px solid #3b82f6; /* blue-500 */
+            border-radius: 0.25rem;
+            cursor: pointer;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .task-checkbox:checked {
+            background-color: #3b82f6; /* blue-500 */
+            border-color: #3b82f6;
+        }
+        .task-checkbox:checked::before {
+            content: '✓';
+            color: white;
+            font-size: 1rem;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4 font-sans">
+
+    <!-- Main Container -->
+    <div class="w-full max-w-lg bg-white p-6 md:p-8 rounded-xl shadow-2xl">
+        <h1 class="text-4xl font-extrabold text-gray-900 mb-6 text-center">
+            <span class="text-blue-600">Task</span> Manager
+        </h1>
+
+        <!-- Error Message Placeholder -->
+        <div id="errorMessage" class="hidden text-sm font-medium text-red-700 bg-red-100 p-3 rounded-lg mb-4 transition duration-300">
+            <!-- Error message content -->
+        </div>
+
+        <!-- Task Input Section -->
+        <div class="flex space-x-3 mb-6">
+            <input 
+                type="text" 
+                id="taskInput" 
+                placeholder="Enter a new task..."
+                class="flex-grow p-3 border-2 border-gray-300 rounded-lg focus-ring focus:border-blue-500 transition duration-150"
+            >
+            <button 
+                id="addTaskButton"
+                class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-150 transform hover:scale-[1.01] focus-ring"
+            >
+                Add Task
+            </button>
+        </div>
+
+        <!-- Task List -->
+        <ul id="taskList" class="space-y-3">
+            <!-- Tasks will be injected here by JavaScript -->
+        </ul>
+        
+        <!-- Empty State Message -->
+        <p id="emptyState" class="text-center text-gray-500 mt-8 hidden">
+            Your to-do list is empty! Time to add some tasks.
+        </p>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const taskInput = document.getElementById('taskInput');
+        const addTaskButton = document.getElementById('addTaskButton');
+        const taskList = document.getElementById('taskList');
+        const errorMessage = document.getElementById('errorMessage');
+        const emptyState = document.getElementById('emptyState');
+
+        // --- Constants ---
+        const STORAGE_KEY = 'taskListData';
+
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', loadTasks);
+        addTaskButton.addEventListener('click', addTask);
+        taskInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addTask();
+            }
+        });
+        
+        // --- Data Persistence and Initialization ---
+
+        /**
+         * Loads tasks from local storage and renders them.
+         */
+        function loadTasks() {
+            try {
+                const storedTasks = localStorage.getItem(STORAGE_KEY);
+                // Parse the stored JSON or default to an empty array
+                const tasks = storedTasks ? JSON.parse(storedTasks) : [];
+                renderTasks(tasks);
+            } catch (e) {
+                console.error("Error loading tasks from local storage:", e);
+                // Fallback to empty list on error
+                renderTasks([]); 
+            }
+        }
+
+        /**
+         * Saves the current list of tasks to local storage.
+         * @param {Array<Object>} tasks - The array of task objects to save.
+         */
+        function saveTasks(tasks) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+            } catch (e) {
+                console.error("Error saving tasks to local storage:", e);
+            }
+        }
+
+        // --- Error Handling ---
+
+        /**
+         * Displays a temporary error message in the UI.
+         * @param {string} message - The message to display.
+         */
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+            setTimeout(() => {
+                errorMessage.classList.add('hidden');
+            }, 3000); // Hide after 3 seconds
+        }
+
+        // --- Functionality ---
+
+        /**
+         * Adds a new task from the input field to the list.
+         */
+        function addTask() {
+            const taskText = taskInput.value.trim();
+
+            if (taskText === "") {
+                showError("Please enter a task name before adding.");
+                return;
+            }
+
+            // Load current tasks, add the new task, and save
+            let tasks;
+            try {
+                tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            } catch (e) {
+                tasks = []; // Handle corrupted data
+            }
+
+            const newTask = {
+                id: Date.now(), // Use timestamp as unique ID
+                text: taskText,
+                completed: false
+            };
+
+            tasks.push(newTask);
+            saveTasks(tasks);
+
+            // Re-render the full list
+            renderTasks(tasks);
+
+            // Clear input field
+            taskInput.value = '';
+        }
+
+        /**
+         * Toggles the completion status of a task by its ID.
+         * @param {number} taskId - The unique ID of the task.
+         */
+        function toggleComplete(taskId) {
+            let tasks;
+            try {
+                tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            } catch (e) {
+                console.error("Data error during toggle.");
+                return;
+            }
+            
+            const taskIndex = tasks.findIndex(task => task.id === taskId);
+
+            if (taskIndex > -1) {
+                tasks[taskIndex].completed = !tasks[taskIndex].completed;
+                saveTasks(tasks);
+                renderTasks(tasks); // Re-render to update the UI visually
+            }
+        }
+
+        /**
+         * Deletes a task by its ID.
+         * @param {number} taskId - The unique ID of the task.
+         */
+        function deleteTask(taskId) {
+            let tasks;
+            try {
+                tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            } catch (e) {
+                console.error("Data error during deletion.");
+                return;
+            }
+
+            const newTasks = tasks.filter(task => task.id !== taskId);
+            saveTasks(newTasks);
+            renderTasks(newTasks); // Re-render the list
+        }
+
+        /**
+         * Clears the current list and re-renders all tasks from the provided array.
+         * @param {Array<Object>} tasks - The array of task objects to render.
+         */
+        function renderTasks(tasks) {
+            taskList.innerHTML = ''; // Clear existing list items
+
+            if (tasks.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            tasks.forEach(task => {
+                // Create list item (li)
+                const listItem = document.createElement('li');
+                listItem.className = `task-item flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition duration-300 ${task.completed ? 'completed' : ''}`;
+                
+                listItem.dataset.taskId = task.id;
+
+                // Create Task Content wrapper (for checkbox and text)
+                const taskContent = document.createElement('div');
+                taskContent.className = 'flex items-center flex-grow space-x-3';
+
+                // Create Checkbox
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = task.completed;
+                checkbox.classList.add('task-checkbox');
+                checkbox.title = 'Mark task as complete';
+                checkbox.addEventListener('click', () => toggleComplete(task.id));
+
+                // Create Task Name Span
+                const taskName = document.createElement('span');
+                taskName.textContent = task.text;
+                taskName.classList.add('task-text', 'text-gray-800', 'text-lg', 'break-words', 'w-full', 'p-1');
+
+                // Create Delete Button
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = '✕'; // Times symbol for delete/close
+                deleteButton.title = 'Delete task';
+                deleteButton.className = 'delete-btn bg-red-500 text-white font-bold text-sm h-8 w-8 rounded-full hover:bg-red-600 transition duration-150 flex items-center justify-center focus-ring ml-4 flex-shrink-0';
+                deleteButton.addEventListener('click', () => deleteTask(task.id));
+
+                // Assemble the elements
+                taskContent.appendChild(checkbox);
+                taskContent.appendChild(taskName);
+                
+                listItem.appendChild(taskContent);
+                listItem.appendChild(deleteButton);
+
+                taskList.appendChild(listItem);
+            });
+        }
+    </script>
+</body>
+</html>

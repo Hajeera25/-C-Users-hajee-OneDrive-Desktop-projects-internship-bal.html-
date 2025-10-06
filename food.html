@@ -1,0 +1,1965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Kitchen Companion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#059669', // Emerald-600 (Green)
+                        'secondary': '#d1fae5', // Emerald-100
+                        'accent': '#60a5fa', // Blue-400
+                        'background': '#f0fdf4', // Emerald-50
+                        'card': '#ffffff',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        .menu-list-container {
+            max-height: 70vh; /* Make the menu scrollable */
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="bg-background min-h-screen font-sans">
+
+    <!-- Loading overlay removed as API call is no longer needed -->
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-primary mb-2">The Kitchen Companion</h1>
+            <p class="text-gray-600">Select a dish from the menu and generate its full, instantly available recipe.</p>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Menu -->
+            <div class="lg:col-span-1 bg-card p-6 rounded-xl shadow-lg h-fit sticky top-4">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Recipe Menu (75 Dishes)</h2>
+                
+                <div id="recipe-menu" class="menu-list-container space-y-4">
+                    <!-- Menu categories will be populated here by the script -->
+                </div>
+
+                <!-- User ID Display -->
+                <div class="mt-6 pt-4 border-t border-gray-100">
+                    <p class="text-xs text-gray-500">Your User ID: <span id="user-id-display" class="font-mono text-gray-700 break-all">Authenticating...</span></p>
+                </div>
+            </div>
+
+            <!-- Right Column: Recipe Display and Input -->
+            <div class="lg:col-span-2">
+                <!-- Recipe Input (Stable Section) -->
+                <div class="bg-card p-6 rounded-xl shadow-lg mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-3">Selected Dish</h3>
+                    <form id="recipe-form" class="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3">
+                        <input type="text" id="recipe-name-input" name="recipe-name-input" required
+                               class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary transition duration-150 text-lg"
+                               placeholder="Select a dish from the menu...">
+                        
+                        <button type="submit"
+                                class="w-full md:w-auto py-3 px-6 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-emerald-700 transition duration-150 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-primary focus:ring-opacity-50">
+                            Generate Recipe
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Recipe Display (Fixed Minimum Height for Stability) -->
+                <div id="recipe-display" class="bg-card p-8 rounded-xl shadow-2xl min-h-[500px]">
+                    
+                    <div id="loading-state" class="hidden text-center pt-24 pb-12">
+                        <!-- Loading state is kept but immediately hidden, as lookup is instant -->
+                        <h2 class="text-4xl font-extrabold text-gray-900 mb-2">Loading...</h2>
+                        <p class="text-gray-600 italic mb-4" id="loading-description">Fetching recipe details...</p>
+                    </div>
+
+                    <div id="initial-prompt" class="text-center pt-24 pb-12">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-20 w-20 mx-auto mb-4 text-primary" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M18.89 4.22L17.5 2.83 14.67 5.66 16.06 7.05 18.89 4.22M15 15.5c-1.38 0-2.5-1.12-2.5-2.5S13.62 10.5 15 10.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5M10 20v2h-2v-2h-2v-2h2v-2h2v2h2v2h-2zm-3-4H2v2h5v-2zm15-4v2h-5v-2h5zm-7-4V7h-2v3h-2v-3h-2v3h-2V7H4v10h12v-3h2v3h4v-7z"/>
+                        </svg>
+                        <p class="text-lg text-gray-500">Select a dish from the menu on the left to start cooking!</p>
+                    </div>
+                    
+                    <div id="recipe-content" class="space-y-8 hidden">
+                        <h2 id="recipe-title" class="text-4xl font-extrabold text-gray-900 mb-2"></h2>
+                        <p id="recipe-description" class="text-gray-600 italic mb-4"></p>
+                        <!-- Ingredients -->
+                        <section>
+                            <h3 class="text-2xl font-bold text-primary border-b-2 border-secondary pb-2 mb-4 flex items-center">
+                                Ingredients
+                            </h3>
+                            <ul id="ingredients-list" class="list-disc list-inside space-y-2 text-gray-700 ml-4">
+                                <!-- Ingredients will be populated here -->
+                            </ul>
+                        </section>
+
+                        <!-- Instructions -->
+                        <section>
+                            <h3 class="text-2xl font-bold text-primary border-b-2 border-secondary pb-2 mb-4 flex items-center">
+                                Instructions
+                            </h3>
+                            <ol id="instructions-list" class="list-decimal list-inside space-y-3 text-gray-700 ml-4">
+                                <!-- Instructions will be populated here -->
+                            </ol>
+                        </section>
+                        
+                        <!-- Grounding Sources (Hidden since data is internal) -->
+                        <section id="grounding-section" class="hidden">
+                            <h3 class="text-lg font-semibold text-gray-700 mb-2">Sources</h3>
+                            <ul id="grounding-sources" class="text-sm text-gray-500 space-y-1">
+                            </ul>
+                        </section>
+                    </div>
+
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Global Variables (Provided by Canvas) ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // apiKey removed as it's no longer used
+
+        let db, auth;
+        let currentUserId = null;
+
+        // --- Fixed Recipe Menu Data (75 Dishes) ---
+        const RECIPE_MENU = {
+            "Indian Cuisine (North - 15 Dishes)": [
+                "Butter Chicken (Murgh Makhani)", "Aloo Gobi (Potato & Cauliflower)", "Palak Paneer (Spinach & Cheese)", 
+                "Chole Bhature (Chickpea Curry & Fried Bread)", "Rajma Chawal (Kidney Beans & Rice)",
+                "Dal Makhani (Creamy Lentils)", "Rogan Josh (Lamb Curry)", "Shahi Paneer (Royal Cheese Curry)", 
+                "Chicken Tikka Masala", "Jeera Rice (Cumin Rice)", "Samosa", "Naan Bread",
+                "Mutter Paneer", "Tandoori Chicken", "Kashmiri Pulao"
+            ],
+            "Indian Cuisine (South - 15 Dishes)": [
+                "Masala Dosa (Spiced Potato Crepe)", "Idli Sambar (Steamed Rice Cake & Lentil Soup)", 
+                "Medu Vada (Savory Doughnut)", "Bisi Bele Bath (Hot Lentil Rice)", "Chicken Chettinad",
+                "Lemon Rice", "Appam with Stew", "Puttu and Kadala Curry", "Hyderabadi Biryani (Veg)", 
+                "Fish Curry (Meen Kuzhambu)", "Rasam", "Curd Rice", "Uthappam", "Pongal (Sweet)", "Vindaloo (Chicken)"
+            ],
+            "Italian & European Classics (15 Dishes)": [
+                "Classic Pepperoni Pizza", "Margherita Pizza", "Spaghetti Carbonara", "Fettuccine Alfredo",
+                "Lasagna Bolognese", "Tiramisu", "Chicken Parmigiana", "Gnocchi with Pesto", 
+                "French Onion Soup", "Beef Bourguignon", "Paella Valenciana", "Wiener Schnitzel",
+                "Mushroom Risotto", "Cannoli", "Penne alla Vodka"
+            ],
+            "American & Beef Dishes (15 Dishes)": [
+                "Gourmet Beef Burger with Caramelized Onions", "Classic Cheeseburger", "Beef Stroganoff", 
+                "Shepherd's Pie (Beef)", "BBQ Pulled Pork Sandwich", "Macaroni and Cheese", "Chili Con Carne",
+                "Steak Frites", "Meatloaf", "Caesar Salad", "Pancakes (Fluffy)", "Waffles",
+                "Fried Chicken (Southern Style)", "Tacos (Ground Beef)", "New England Clam Chowder"
+            ],
+            "Asian & Seafood (15 Dishes)": [ 
+                "Chicken Stir Fry (Easy)", "Pad Thai (Chicken)", "Sushi Rolls (Simple Tuna)", 
+                "Miso Soup", "Pork Dumplings (Gyoza)", "Grilled Salmon with Asparagus", 
+                "Fish and Chips (Cod)", "Chicken Curry (Thai Green)", "Ramen (Shoyu)", "Bibimbap",
+                "Pho (Vietnamese)", "Spring Rolls (Veg)", "Tempura Shrimp", "Chicken Korma", "Jerk Chicken" // Total 75
+            ],
+        };
+        
+        // --- HARDCODED RECIPE DATA (75 Recipes) ---
+        // This data structure provides the content instantly without an API call.
+        const HARDCODED_RECIPES = {
+            "Butter Chicken (Murgh Makhani)": {
+                recipeName: "Butter Chicken (Murgh Makhani)",
+                description: "A rich and creamy tomato-based curry with tender pieces of marinated chicken.",
+                prepTime: "20 min",
+                cookTime: "40 min",
+                ingredients: [
+                    "1.5 lbs chicken breast/thighs, cubed",
+                    "1 cup plain yogurt",
+                    "1 tbsp ginger-garlic paste",
+                    "1 tsp turmeric powder",
+                    "2 tbsp butter",
+                    "1 large onion, chopped",
+                    "1 (14.5 oz) can crushed tomatoes",
+                    "1 cup heavy cream",
+                    "1 tsp garam masala"
+                ],
+                instructions: [
+                    "Marinate chicken in yogurt, ginger-garlic paste, and turmeric for at least 30 minutes.",
+                    "In a pan, melt butter and sauté the chopped onion until golden.",
+                    "Add crushed tomatoes and cook for 10 minutes until the sauce thickens.",
+                    "Add marinated chicken and cook thoroughly until done.",
+                    "Stir in heavy cream and garam masala. Simmer for 5 minutes. Serve hot with naan or rice."
+                ]
+            },
+            "Aloo Gobi (Potato & Cauliflower)": {
+                recipeName: "Aloo Gobi (Potato & Cauliflower)",
+                description: "A dry, mildly spiced Indian dish with sautéed potatoes and cauliflower florets.",
+                prepTime: "15 min",
+                cookTime: "30 min",
+                ingredients: [
+                    "2 medium potatoes, cubed",
+                    "1 medium head cauliflower, cut into florets",
+                    "1 onion, chopped",
+                    "1 tbsp ginger-garlic paste",
+                    "1 tsp turmeric, 1 tsp cumin powder, 1 tsp coriander powder",
+                    "2 tbsp oil",
+                    "1/2 cup water",
+                    "Salt to taste"
+                ],
+                instructions: [
+                    "Heat oil in a large pan and add cumin seeds. Let them splutter.",
+                    "Add onions and sauté until translucent. Add ginger-garlic paste and cook for 1 minute.",
+                    "Add turmeric, cumin, and coriander powder. Stir for 30 seconds.",
+                    "Add potatoes and cauliflower. Stir well to coat with spices.",
+                    "Add salt and 1/2 cup water. Cover and cook for 20-25 minutes, or until vegetables are tender."
+                ]
+            },
+            "Palak Paneer (Spinach & Cheese)": {
+                recipeName: "Palak Paneer (Spinach & Cheese)",
+                description: "A vibrant green, creamy curry featuring spinach puree and soft cubes of Indian cottage cheese.",
+                prepTime: "15 min",
+                cookTime: "25 min",
+                ingredients: [
+                    "1 lb fresh spinach",
+                    "8 oz paneer (cottage cheese), cubed",
+                    "1 onion, chopped",
+                    "1 tbsp ginger-garlic paste",
+                    "1/2 cup heavy cream (optional)",
+                    "1 tsp garam masala",
+                    "2 tbsp oil"
+                ],
+                instructions: [
+                    "Blanch the spinach in hot water for 2 minutes, then immediately transfer to ice water. Blend into a smooth puree.",
+                    "Heat oil and sauté the onion until soft. Add ginger-garlic paste and cook briefly.",
+                    "Add the spinach puree, salt, and garam masala. Simmer for 10 minutes.",
+                    "Gently fold in the paneer cubes. Stir in heavy cream if desired. Serve hot."
+                ]
+            },
+            "Chole Bhature (Chickpea Curry & Fried Bread)": {
+                recipeName: "Chole Bhature (Chickpea Curry & Fried Bread)",
+                description: "Spicy chickpea curry (Chana Masala) served with large, fluffy deep-fried bread (Bhature).",
+                prepTime: "60 min",
+                cookTime: "40 min",
+                ingredients: [
+                    "1 cup dried chickpeas, soaked overnight",
+                    "1 large onion, chopped",
+                    "2 tomatoes, pureed",
+                    "1 tbsp chole masala powder",
+                    "2 cups all-purpose flour for bhature",
+                    "1/4 cup yogurt",
+                    "Oil for frying",
+                    "Salt, ginger, garlic"
+                ],
+                instructions: [
+                    "Cook soaked chickpeas in a pressure cooker until tender. Reserve the water.",
+                    "For the chole: Sauté onions, then add ginger-garlic paste and tomato puree. Cook until oil separates.",
+                    "Add chole masala and the cooked chickpeas with their water. Simmer for 20 minutes.",
+                    "For the bhature: Mix flour, yogurt, and a little water to form a soft dough. Let rest for 1 hour.",
+                    "Roll out the dough into flat ovals and deep fry in hot oil until puffed and golden brown. Serve immediately with chole."
+                ]
+            },
+            "Rajma Chawal (Kidney Beans & Rice)": {
+                recipeName: "Rajma Chawal (Kidney Beans & Rice)",
+                description: "Hearty red kidney bean curry cooked in a thick, fragrant tomato and onion gravy, traditionally served with steamed rice.",
+                prepTime: "120 min (soaking)",
+                cookTime: "50 min",
+                ingredients: [
+                    "1 cup dried Rajma (Kidney Beans), soaked overnight",
+                    "2 large onions, finely chopped",
+                    "3 tomatoes, pureed",
+                    "1 tbsp ginger-garlic paste",
+                    "1 tbsp Rajma Masala powder",
+                    "3 tbsp oil/ghee",
+                    "Fresh cilantro for garnish"
+                ],
+                instructions: [
+                    "Pressure cook the soaked kidney beans until they are very soft (about 6-8 whistles). Reserve the liquid.",
+                    "In a pan, heat oil/ghee. Sauté onions until deep brown. Add ginger-garlic paste.",
+                    "Add tomato puree and cook until the oil begins to separate from the gravy.",
+                    "Stir in Rajma Masala, salt, and half a cup of the reserved kidney bean liquid.",
+                    "Add the cooked Rajma. Simmer gently for 20-30 minutes, mashing a few beans to thicken the curry. Garnish and serve with rice."
+                ]
+            },
+            "Dal Makhani (Creamy Lentils)": {
+                recipeName: "Dal Makhani (Creamy Lentils)",
+                description: "A rich and indulgent Indian dish made with whole black lentils (Urad Dal) and kidney beans, slow-cooked with butter and cream.",
+                prepTime: "120 min (soaking)",
+                cookTime: "90 min",
+                ingredients: [
+                    "1/2 cup Urad Dal (Black Lentils), soaked overnight",
+                    "1/4 cup Rajma (Kidney Beans), soaked overnight",
+                    "2 tbsp butter",
+                    "1 cup tomato puree",
+                    "1/2 cup heavy cream",
+                    "1 tsp cumin powder",
+                    "1 tsp garam masala"
+                ],
+                instructions: [
+                    "Cook the soaked lentils and beans in a pressure cooker until soft and mushy (about 10 whistles).",
+                    "In a separate pan, melt butter. Add tomato puree and cook until it darkens.",
+                    "Stir in cumin powder, garam masala, and salt.",
+                    "Combine the cooked lentils/beans with the tomato mixture.",
+                    "Simmer for 30 minutes, stirring occasionally. Just before serving, stir in the heavy cream."
+                ]
+            },
+            "Rogan Josh (Lamb Curry)": {
+                recipeName: "Rogan Josh (Lamb Curry)",
+                description: "A signature Kashmiri lamb curry, characterized by its deep red color and aromatic spices, often using dried Kashmiri chilies for color, not just heat.",
+                prepTime: "30 min",
+                cookTime: "60 min",
+                ingredients: [
+                    "1.5 lbs lamb or mutton, cubed",
+                    "1 cup yogurt",
+                    "1 tbsp ginger powder",
+                    "1 tbsp fennel powder (saunf)",
+                    "2 tsp dried ginger powder",
+                    "2 dried Kashmiri chilies, soaked and pureed",
+                    "3 tbsp oil/ghee"
+                ],
+                instructions: [
+                    "Marinate the lamb cubes in yogurt, ginger powder, and salt for at least 30 minutes.",
+                    "Heat oil/ghee and briefly fry cardamom, cloves, and cinnamon sticks.",
+                    "Add the marinated lamb and brown it on all sides.",
+                    "Stir in the chili puree, fennel powder, and dried ginger powder.",
+                    "Add 1 cup of water, cover, and simmer over low heat for 1 hour, or until the lamb is tender. Stir occasionally."
+                ]
+            },
+            "Shahi Paneer (Royal Cheese Curry)": {
+                recipeName: "Shahi Paneer (Royal Cheese Curry)",
+                description: "A mild, creamy curry made with paneer, nuts, and a rich, sweet tomato base, perfect for special occasions.",
+                prepTime: "20 min",
+                cookTime: "30 min",
+                ingredients: [
+                    "8 oz paneer, cubed",
+                    "1 large onion, roughly chopped",
+                    "1/2 cup tomato puree",
+                    "1/4 cup cashew paste (cashews soaked and blended)",
+                    "1/4 cup heavy cream",
+                    "1 tsp sugar",
+                    "2 tbsp oil",
+                    "Spices: cardamom, cinnamon, bay leaf"
+                ],
+                instructions: [
+                    "Blanch onions, cardamom, and cinnamon. Puree them into a smooth paste.",
+                    "Heat oil, add the paste and tomato puree. Cook until oil separates.",
+                    "Stir in the cashew paste, sugar, and salt. Cook for 5 minutes.",
+                    "Add the paneer cubes and a little water to reach desired consistency. Simmer for 10 minutes.",
+                    "Stir in the heavy cream just before serving."
+                ]
+            },
+            "Chicken Tikka Masala": {
+                recipeName: "Chicken Tikka Masala",
+                description: "Grilled chicken chunks simmered in a spiced tomato and onion sauce—a highly popular dish in British Indian cuisine.",
+                prepTime: "30 min",
+                cookTime: "40 min",
+                ingredients: [
+                    "1.5 lbs chicken, cubed and marinated (yogurt, spices)",
+                    "1 large onion, chopped",
+                    "2 cups tomato puree",
+                    "1 cup heavy cream",
+                    "1 tbsp ginger-garlic paste",
+                    "1 tbsp Tikka Masala powder",
+                    "2 tbsp oil"
+                ],
+                instructions: [
+                    "Grill or bake the marinated chicken pieces until cooked through. Set aside.",
+                    "In a pan, heat oil and sauté the onion until soft. Add ginger-garlic paste and cook briefly.",
+                    "Pour in the tomato puree, Tikka Masala powder, and salt. Simmer for 15 minutes.",
+                    "Stir in the heavy cream, then add the cooked chicken pieces.",
+                    "Simmer for another 10 minutes until the sauce is thick and the chicken is fully coated. Serve hot."
+                ]
+            },
+            "Jeera Rice (Cumin Rice)": {
+                recipeName: "Jeera Rice (Cumin Rice)",
+                description: "Simple, fragrant Basmati rice tempered with ghee and toasted cumin seeds.",
+                prepTime: "5 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "1 cup Basmati rice, washed and soaked for 15 min",
+                    "2 cups water",
+                    "1 tbsp ghee (clarified butter)",
+                    "1 tbsp cumin seeds (jeera)",
+                    "1 bay leaf",
+                    "Salt to taste"
+                ],
+                instructions: [
+                    "In a pot, heat the ghee. Add cumin seeds and bay leaf; let the cumin seeds splutter.",
+                    "Drain the rice and add it to the pot. Sauté the rice gently for 1 minute.",
+                    "Add 2 cups of water and salt. Bring to a boil.",
+                    "Reduce heat to low, cover the pot tightly, and simmer for 12 minutes until all water is absorbed.",
+                    "Turn off the heat and let it steam, covered, for 5 minutes before fluffing with a fork."
+                ]
+            },
+            "Samosa": {
+                recipeName: "Samosa",
+                description: "Flaky, deep-fried pastry pockets filled with a savory mixture of spiced potato and peas.",
+                prepTime: "45 min",
+                cookTime: "20 min",
+                ingredients: [
+                    "2 cups all-purpose flour for the dough",
+                    "1/4 cup oil or ghee (hot) for the dough",
+                    "2 large potatoes, boiled and mashed for filling",
+                    "1/2 cup green peas",
+                    "1 tbsp ginger, chopped",
+                    "1 tsp cumin seeds, 1 tsp coriander powder",
+                    "Oil for deep frying"
+                ],
+                instructions: [
+                    "Mix flour, hot oil/ghee, and salt to form a stiff dough. Cover and rest for 30 minutes.",
+                    "For the filling, sauté cumin seeds and ginger. Add mashed potatoes, peas, and spices (coriander, chili powder, salt). Mix well.",
+                    "Divide the dough, roll into ovals, cut in half, and shape into cones.",
+                    "Fill the cones with potato mixture, seal the edges, and deep fry over medium-low heat until golden brown and crispy."
+                ]
+            },
+            "Naan Bread": {
+                recipeName: "Naan Bread",
+                description: "Soft, slightly chewy leavened flatbread traditionally cooked in a tandoor, but easily made on a stovetop.",
+                prepTime: "120 min (dough)",
+                cookTime: "10 min",
+                ingredients: [
+                    "2 cups all-purpose flour",
+                    "1/2 cup plain yogurt",
+                    "1 tsp active dry yeast",
+                    "1 tbsp sugar",
+                    "1/2 tsp baking soda",
+                    "Ghee or butter for brushing"
+                ],
+                instructions: [
+                    "Dissolve yeast and sugar in warm water. Let sit for 10 minutes until foamy.",
+                    "Mix flour, salt, baking soda, yogurt, and yeast mixture to form a soft, elastic dough.",
+                    "Cover and let the dough rise in a warm place for 1.5 to 2 hours.",
+                    "Divide the dough, roll into ovals. Cook each naan in a hot cast-iron pan/tawa until bubbles form.",
+                    "Flip and cook the other side, or hold directly over a high flame (carefully) for a charred look. Brush with ghee."
+                ]
+            },
+            "Mutter Paneer": {
+                recipeName: "Mutter Paneer",
+                description: "A North Indian curry featuring cottage cheese (paneer) and green peas (mutter) in a rich tomato-based gravy.",
+                prepTime: "15 min",
+                cookTime: "25 min",
+                ingredients: [
+                    "8 oz paneer, cubed",
+                    "1 cup green peas (frozen or fresh)",
+                    "2 tomatoes, pureed",
+                    "1 onion, chopped",
+                    "1 tbsp ginger-garlic paste",
+                    "1 tsp turmeric, 1 tsp coriander powder",
+                    "2 tbsp oil"
+                ],
+                instructions: [
+                    "Heat oil, sauté onions until light brown. Add ginger-garlic paste and cook for 1 minute.",
+                    "Add tomato puree, turmeric, coriander powder, and salt. Cook until oil separates.",
+                    "Add the green peas and 1 cup of water. Simmer for 10 minutes until peas are tender.",
+                    "Gently add the paneer cubes. Simmer for 5 minutes. Garnish with cilantro and serve."
+                ]
+            },
+            "Tandoori Chicken": {
+                recipeName: "Tandoori Chicken",
+                description: "Chicken marinated in yogurt, lemon juice, and a blend of aromatic spices, then traditionally cooked in a clay oven (tandoor) or baked/grilled.",
+                prepTime: "120 min (marinating)",
+                cookTime: "30 min",
+                ingredients: [
+                    "4 chicken leg quarters or breasts",
+                    "1 cup thick yogurt",
+                    "2 tbsp ginger-garlic paste",
+                    "2 tbsp lemon juice",
+                    "1 tbsp Tandoori Masala powder",
+                    "Red food coloring (optional, for authentic color)",
+                    "Salt, pepper, chili powder"
+                ],
+                instructions: [
+                    "Score the chicken pieces deeply. Combine all marinade ingredients.",
+                    "Marinate the chicken for at least 2 hours, or overnight in the refrigerator.",
+                    "Preheat oven to 450°F (230°C) or prepare your grill.",
+                    "Place the marinated chicken on a rack and bake/grill for 25-30 minutes, turning halfway, until cooked through and slightly charred on the edges."
+                ]
+            },
+            "Kashmiri Pulao": {
+                recipeName: "Kashmiri Pulao",
+                description: "A fragrant rice dish cooked with whole spices, milk, and garnished generously with nuts and dried fruits.",
+                prepTime: "10 min",
+                cookTime: "25 min",
+                ingredients: [
+                    "1 cup Basmati rice, soaked",
+                    "1 tbsp ghee",
+                    "1/4 cup chopped almonds, cashews, raisins",
+                    "1/2 cup milk",
+                    "1 tsp sugar",
+                    "Whole spices: cardamom, cloves, cinnamon stick",
+                    "Salt to taste"
+                ],
+                instructions: [
+                    "In a pot, heat ghee. Fry the nuts and raisins until light brown. Remove and set aside.",
+                    "In the remaining ghee, add whole spices. Sauté for a minute.",
+                    "Drain the rice and add it to the pot. Sauté gently. Add water, milk, sugar, and salt.",
+                    "Bring to a boil, then reduce heat to low, cover, and cook for 15 minutes.",
+                    "Garnish with the fried nuts and fruits. Gently fluff the rice before serving."
+                ]
+            },
+            "Masala Dosa (Spiced Potato Crepe)": {
+                recipeName: "Masala Dosa (Spiced Potato Crepe)",
+                description: "A thin, crispy rice and lentil crepe (Dosa) filled with a lightly spiced potato stuffing (Masala).",
+                prepTime: "12 hours (fermenting)",
+                cookTime: "10 min",
+                ingredients: [
+                    "2 cups Dosa batter (pre-made or fermented)",
+                    "2 medium potatoes, boiled and mashed for filling",
+                    "1 onion, chopped",
+                    "1 tsp mustard seeds, 1 tsp chana dal (lentil)",
+                    "Curry leaves, green chilies",
+                    "Oil for cooking"
+                ],
+                instructions: [
+                    "Prepare the potato filling: Heat oil, temper with mustard seeds and chana dal. Add curry leaves, chilies, and onions; sauté until soft.",
+                    "Add mashed potatoes, turmeric, and salt. Mix well and set aside.",
+                    "Heat a non-stick tawa (griddle). Pour a ladle of dosa batter and spread it into a thin circle.",
+                    "Drizzle oil around the edges. Cook until the dosa is golden brown and crispy.",
+                    "Place a spoonful of potato masala in the center, fold, and serve hot."
+                ]
+            },
+            "Idli Sambar (Steamed Rice Cake & Lentil Soup)": {
+                recipeName: "Idli Sambar (Steamed Rice Cake & Lentil Soup)",
+                description: "Soft, fluffy steamed rice and lentil cakes (Idli) served with a vegetable and lentil stew (Sambar) and coconut chutney.",
+                prepTime: "12 hours (batter)",
+                cookTime: "45 min",
+                ingredients: [
+                    "2 cups Idli batter (pre-made or fermented)",
+                    "1/2 cup Toor dal (split pigeon peas) for sambar",
+                    "Mixed vegetables (carrots, beans, pumpkin)",
+                    "2 tbsp Sambar powder",
+                    "Tamarind paste, mustard seeds, curry leaves"
+                ],
+                instructions: [
+                    "Sambar: Cook Toor dal and vegetables. Add Sambar powder, tamarind paste, and salt. Simmer for 15 minutes.",
+                    "Idli: Pour batter into greased Idli molds.",
+                    "Steam the Idlis for 10-15 minutes until cooked and fluffy.",
+                    "Serve the hot Idlis immediately with Sambar and coconut chutney."
+                ]
+            },
+            "Medu Vada (Savory Doughnut)": {
+                recipeName: "Medu Vada (Savory Doughnut)",
+                description: "Crispy-on-the-outside, soft-on-the-inside deep-fried lentil fritters, usually shaped like a doughnut.",
+                prepTime: "4 hours (soaking)",
+                cookTime: "20 min",
+                ingredients: [
+                    "1 cup Urad Dal (Black Gram), soaked for 4 hours",
+                    "1 inch ginger, chopped",
+                    "2 green chilies, chopped",
+                    "1/4 cup chopped onion (optional)",
+                    "Salt to taste",
+                    "Oil for deep frying"
+                ],
+                instructions: [
+                    "Grind the soaked Urad Dal with minimal water (just enough to make a thick paste). The batter should be fluffy.",
+                    "Mix in chopped ginger, green chilies, onions, and salt.",
+                    "Heat oil for deep frying.",
+                    "Wet your hand, take a portion of the batter, flatten it slightly, and make a hole in the center with your thumb to form a doughnut shape.",
+                    "Carefully slide the Vada into the hot oil. Fry until golden brown and crispy. Serve with Sambar or chutney."
+                ]
+            },
+            "Bisi Bele Bath (Hot Lentil Rice)": {
+                recipeName: "Bisi Bele Bath (Hot Lentil Rice)",
+                description: "A spicy, wholesome, and slightly tangy dish from Karnataka, consisting of rice, lentils, and mixed vegetables.",
+                prepTime: "15 min",
+                cookTime: "40 min",
+                ingredients: [
+                    "1 cup rice",
+                    "1/2 cup Toor Dal",
+                    "1 cup mixed vegetables (carrots, potatoes, beans)",
+                    "3 tbsp Bisi Bele Bath powder (essential spice mix)",
+                    "Tamarind pulp",
+                    "Ghee, mustard seeds, and curry leaves for tempering"
+                ],
+                instructions: [
+                    "Wash and combine rice and Toor dal. Pressure cook with 4 cups of water and salt.",
+                    "In a pan, sauté the mixed vegetables until tender.",
+                    "Add the cooked vegetables to the rice-dal mixture.",
+                    "Stir in the Bisi Bele Bath powder, tamarind pulp, and adjust salt. Simmer for 10 minutes.",
+                    "Temper with ghee, mustard seeds, and curry leaves. Pour over the Bisi Bele Bath. Serve hot."
+                ]
+            },
+            "Chicken Chettinad": {
+                recipeName: "Chicken Chettinad",
+                description: "A famous, aromatic, and spicy chicken curry from the Chettinad region of South India, known for its distinct blend of freshly ground spices.",
+                prepTime: "30 min",
+                cookTime: "45 min",
+                ingredients: [
+                    "1.5 lbs chicken, cut into pieces",
+                    "1 large onion, chopped",
+                    "2 tomatoes, pureed",
+                    "2 tbsp Chettinad Masala (spice mix)",
+                    "1/4 cup thick yogurt",
+                    "1 tbsp ginger-garlic paste",
+                    "3 tbsp oil"
+                ],
+                instructions: [
+                    "Marinate chicken in yogurt and Chettinad Masala for 30 minutes.",
+                    "Heat oil and sauté the onion until deep brown. Add ginger-garlic paste and cook briefly.",
+                    "Add the tomato puree and cook until the oil separates.",
+                    "Add the marinated chicken and fry until sealed.",
+                    "Add 1 cup of water, cover, and simmer for 30 minutes until the chicken is tender and the curry is thick. Serve with rice or parotta."
+                ]
+            },
+            "Lemon Rice": {
+                recipeName: "Lemon Rice",
+                description: "Quick and flavorful rice tossed with fresh lemon juice, turmeric, peanuts, and curry leaves.",
+                prepTime: "5 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "2 cups cooked white rice (Basmati or Sona Masuri)",
+                    "1/4 cup roasted peanuts",
+                    "2 tbsp oil",
+                    "1 tsp mustard seeds, 1 tsp Chana Dal (lentil)",
+                    "A handful of curry leaves",
+                    "Juice of 1 large lemon",
+                    "1/2 tsp turmeric powder"
+                ],
+                instructions: [
+                    "Heat oil in a wide pan. Add mustard seeds and let them splutter. Add Chana Dal and roast until light brown.",
+                    "Add peanuts, curry leaves, and green chilies. Sauté for a minute.",
+                    "Add turmeric powder and the cooked rice. Stir gently to mix everything.",
+                    "Turn off the heat. Stir in the lemon juice and salt to taste. Serve immediately."
+                ]
+            },
+            "Appam with Stew": {
+                recipeName: "Appam with Stew",
+                description: "Bowl-shaped, soft pancakes with crispy edges (Appam) served with a mild, coconut milk-based vegetable or chicken stew.",
+                prepTime: "6 hours (fermenting)",
+                cookTime: "30 min",
+                ingredients: [
+                    "2 cups Appam batter (rice and coconut)",
+                    "1 lb mixed vegetables or chicken for the stew",
+                    "1 can coconut milk (thick and thin)",
+                    "Onion, ginger, garlic, green chilies",
+                    "Whole spices: cardamom, cloves, cinnamon"
+                ],
+                instructions: [
+                    "Stew: Sauté onion, ginger, garlic, and whole spices. Add chicken/vegetables and thin coconut milk. Simmer until cooked.",
+                    "Stir in the thick coconut milk and remove from heat before it boils. Set aside.",
+                    "Appam: Heat a wok-shaped Appam pan. Pour a ladle of batter and swirl to coat the sides.",
+                    "Cover and cook until the center is soft and the edges are crispy. Serve immediately with the stew."
+                ]
+            },
+            "Puttu and Kadala Curry": {
+                recipeName: "Puttu and Kadala Curry",
+                description: "A popular breakfast from Kerala: steamed rice flour logs layered with fresh coconut (Puttu) served with a black chickpea curry (Kadala Curry).",
+                prepTime: "20 min",
+                cookTime: "40 min",
+                ingredients: [
+                    "2 cups coarse rice flour for puttu",
+                    "1 cup grated fresh coconut",
+                    "1 cup black chickpeas (kala chana), soaked overnight",
+                    "Onion, tomato, coconut milk for curry",
+                    "Puttu maker or steamer"
+                ],
+                instructions: [
+                    "Kadala Curry: Cook chickpeas until tender. Sauté onions, tomatoes, and curry spices. Add the chickpeas and coconut milk. Simmer until thick.",
+                    "Puttu: Mix rice flour with a little water and salt until crumbly. It should resemble coarse breadcrumbs.",
+                    "Layer the puttu maker with grated coconut and the rice flour mixture alternately.",
+                    "Steam for 8-10 minutes until the Puttu is cooked. Serve hot with Kadala Curry."
+                ]
+            },
+            "Hyderabadi Biryani (Veg)": {
+                recipeName: "Hyderabadi Biryani (Veg)",
+                description: "Fragrant, aromatic layered rice dish cooked in a unique 'Dum' style with marinated vegetables and whole spices.",
+                prepTime: "30 min",
+                cookTime: "60 min",
+                ingredients: [
+                    "1.5 cups Basmati rice, parboiled (70% done)",
+                    "1.5 cups mixed vegetables (potatoes, carrots, beans)",
+                    "1/2 cup yogurt",
+                    "2 tbsp Biryani Masala",
+                    "Fried onions (birista), mint, and cilantro for layering",
+                    "Saffron milk (saffron strands soaked in milk)"
+                ],
+                instructions: [
+                    "Marinate the mixed vegetables in yogurt, Biryani Masala, and salt for 30 minutes.",
+                    "In a heavy-bottomed pot, layer the marinated vegetables and the parboiled rice alternately.",
+                    "Sprinkle saffron milk, fried onions, mint, and cilantro on top.",
+                    "Cover the pot tightly with a lid (Dum style) and cook on low heat for 30 minutes until the rice and vegetables are fully cooked and flavors are absorbed."
+                ]
+            },
+            "Fish Curry (Meen Kuzhambu)": {
+                recipeName: "Fish Curry (Meen Kuzhambu)",
+                description: "A tangy and spicy South Indian fish curry, typically made with a blend of regional spices, tamarind, and sometimes coconut milk.",
+                prepTime: "20 min",
+                cookTime: "35 min",
+                ingredients: [
+                    "1 lb firm white fish fillets (e.g., cod, tilapia), cut into pieces",
+                    "1/4 cup tamarind pulp, soaked in water",
+                    "1 large onion, chopped",
+                    "1 tomato, chopped",
+                    "1 tbsp fish curry powder",
+                    "1/2 cup coconut milk (optional)",
+                    "Mustard seeds, fenugreek seeds, curry leaves"
+                ],
+                instructions: [
+                    "Heat oil, temper with mustard and fenugreek seeds and curry leaves. Add onions and sauté until soft.",
+                    "Add tomatoes and cook until mushy. Stir in the fish curry powder and salt.",
+                    "Add the tamarind water and bring to a boil. Simmer for 10 minutes.",
+                    "Gently slide in the fish pieces. Cover and cook for 8-10 minutes until the fish is cooked through.",
+                    "Stir in coconut milk at the very end if using. Serve with rice."
+                ]
+            },
+            "Rasam": {
+                recipeName: "Rasam",
+                description: "A light, tangy, and spicy South Indian soup, traditionally served as an accompaniment to rice or sipped as a digestive.",
+                prepTime: "10 min",
+                cookTime: "20 min",
+                ingredients: [
+                    "2 large tomatoes, mashed",
+                    "1 tbsp Rasam powder",
+                    "1/4 cup tamarind pulp, soaked in water",
+                    "1 tsp mustard seeds, 1 tsp cumin seeds",
+                    "A pinch of asafoetida (hing)",
+                    "Cilantro and curry leaves"
+                ],
+                instructions: [
+                    "Combine mashed tomatoes, tamarind water, Rasam powder, and salt with 3 cups of water. Bring to a boil, then simmer for 15 minutes.",
+                    "In a separate small pan, heat ghee. Temper with mustard seeds, cumin seeds, asafoetida, and curry leaves.",
+                    "Pour the tempering into the simmering Rasam. Let it cook for 2 minutes, then turn off the heat.",
+                    "Garnish heavily with chopped cilantro before serving."
+                ]
+            },
+            "Curd Rice": {
+                recipeName: "Curd Rice",
+                description: "Comforting South Indian dish made by mixing cooked rice with yogurt (curd) and tempering it with mild spices.",
+                prepTime: "5 min",
+                cookTime: "10 min",
+                ingredients: [
+                    "2 cups cooked white rice, cooled",
+                    "1.5 cups plain yogurt (curd)",
+                    "1/2 cup milk (to prevent souring)",
+                    "1 tbsp oil",
+                    "1 tsp mustard seeds, 1 tsp Urad Dal",
+                    "Ginger, chopped green chilies, curry leaves"
+                ],
+                instructions: [
+                    "Mash the cooled rice lightly. Mix in the yogurt, milk, and salt until smooth and creamy.",
+                    "In a small pan, heat oil. Temper with mustard seeds, Urad Dal, ginger, chilies, and curry leaves.",
+                    "Pour the hot tempering over the rice-yogurt mixture and mix well.",
+                    "Chill for at least 30 minutes before serving, garnished with cilantro or pomegranate seeds."
+                ]
+            },
+            "Uthappam": {
+                recipeName: "Uthappam",
+                description: "A thick, savory pancake made from dosa batter, often topped with vegetables like onions, tomatoes, and carrots.",
+                prepTime: "12 hours (batter)",
+                cookTime: "15 min",
+                ingredients: [
+                    "2 cups Dosa or Idli batter",
+                    "1/2 cup finely chopped onions",
+                    "1/4 cup finely chopped tomatoes",
+                    "1/4 cup chopped cilantro and carrots",
+                    "Oil for cooking"
+                ],
+                instructions: [
+                    "Heat a non-stick tawa (griddle). Pour a thick ladle of batter and spread it gently into a small, thick circle.",
+                    "Immediately sprinkle the chopped onions, tomatoes, and other vegetables on top.",
+                    "Drizzle oil around the edges and on the top.",
+                    "Cover and cook until the base is golden brown and the toppings are slightly cooked into the batter.",
+                    "Flip and cook the other side for a minute. Serve hot with Sambar or chutney."
+                ]
+            },
+            "Pongal (Sweet)": {
+                recipeName: "Pongal (Sweet)",
+                description: "A sweet rice and lentil pudding (Sakkarai Pongal) flavored richly with jaggery, cardamom, and ghee-fried nuts.",
+                prepTime: "10 min",
+                cookTime: "30 min",
+                ingredients: [
+                    "1/2 cup rice",
+                    "1/4 cup Moong Dal (split yellow lentils)",
+                    "1 cup jaggery, crushed",
+                    "1/2 cup ghee (clarified butter)",
+                    "Cardamom powder",
+                    "Cashews and raisins for garnish"
+                ],
+                instructions: [
+                    "Roast the Moong Dal until light golden. Combine with rice and pressure cook with 3 cups of water until soft.",
+                    "Melt the crushed jaggery with 1/2 cup water. Strain to remove impurities.",
+                    "Add the jaggery syrup and cardamom powder to the cooked rice and dal mixture. Mix well.",
+                    "In a separate small pan, heat ghee. Fry cashews and raisins until golden. Pour this tempering over the Pongal. Serve warm."
+                ]
+            },
+            "Vindaloo (Chicken)": {
+                recipeName: "Vindaloo (Chicken)",
+                description: "A fiery and tangy Indian curry, originating from Goa, known for its intense flavor, traditionally using vinegar and chili peppers.",
+                prepTime: "60 min",
+                cookTime: "45 min",
+                ingredients: [
+                    "1.5 lbs chicken, cubed",
+                    "1/4 cup vinegar (apple cider or white wine)",
+                    "4 dried red chilies (or more for heat)",
+                    "1 tbsp ginger-garlic paste",
+                    "1 tsp cumin seeds, 1 tsp turmeric powder",
+                    "2 tbsp oil"
+                ],
+                instructions: [
+                    "Grind the chilies, cumin, turmeric, ginger-garlic paste, and vinegar to form a coarse Vindaloo paste.",
+                    "Marinate the chicken in this paste for at least 1 hour.",
+                    "Heat oil in a heavy-bottomed pan. Sauté a chopped onion (optional) until brown.",
+                    "Add the marinated chicken and cook, stirring occasionally, until it is sealed and tender.",
+                    "Add 1 cup of water, cover, and simmer for 30 minutes until the chicken is fully cooked and the gravy is reduced. Serve hot."
+                ]
+            },
+            "Classic Pepperoni Pizza": {
+                recipeName: "Classic Pepperoni Pizza",
+                description: "A timeless pizza topped with tomato sauce, gooey mozzarella cheese, and slices of spicy pepperoni.",
+                prepTime: "30 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "1 pizza dough (store-bought or homemade)",
+                    "1/2 cup marinara sauce",
+                    "1 cup shredded mozzarella cheese",
+                    "1/2 cup sliced pepperoni",
+                    "1 tbsp olive oil",
+                    "Dried oregano"
+                ],
+                instructions: [
+                    "Preheat oven to 450°F (230°C).",
+                    "Roll out the pizza dough on a floured surface to your desired thickness.",
+                    "Spread the marinara sauce evenly over the dough, leaving a small crust border.",
+                    "Sprinkle the mozzarella cheese over the sauce, followed by the pepperoni slices.",
+                    "Bake for 12-15 minutes, or until the crust is golden brown and the cheese is bubbly. Slice and serve."
+                ]
+            },
+            "Margherita Pizza": {
+                recipeName: "Margherita Pizza",
+                description: "The simple, iconic Italian pizza featuring the colors of the Italian flag: red tomato, white mozzarella, and green basil.",
+                prepTime: "20 min",
+                cookTime: "12 min",
+                ingredients: [
+                    "1 pizza dough",
+                    "1/2 cup crushed San Marzano tomatoes",
+                    "8 oz fresh mozzarella, sliced or torn",
+                    "A handful of fresh basil leaves",
+                    "Extra virgin olive oil"
+                ],
+                instructions: [
+                    "Preheat oven to 500°F (260°C).",
+                    "Roll out the dough. Spread the crushed tomatoes lightly over the dough.",
+                    "Place the slices or pieces of fresh mozzarella evenly across the sauce.",
+                    "Bake for 10-12 minutes until the crust is puffy and the cheese is melted and bubbling.",
+                    "Drizzle with olive oil and scatter fresh basil leaves over the top before serving."
+                ]
+            },
+            "Spaghetti Carbonara": {
+                recipeName: "Spaghetti Carbonara",
+                description: "A classic Roman pasta dish made with a creamy sauce of eggs, Pecorino cheese, cured pork (Guanciale or Pancetta), and black pepper.",
+                prepTime: "10 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "12 oz spaghetti",
+                    "4 oz Guanciale (cured pork cheek) or Pancetta, cubed",
+                    "2 large eggs, plus 2 extra yolks",
+                    "1 cup grated Pecorino Romano cheese",
+                    "Freshly cracked black pepper",
+                    "Salt for pasta water"
+                ],
+                instructions: [
+                    "Cook spaghetti according to package directions. Reserve 1 cup of the pasta water.",
+                    "While pasta cooks, crisp the Guanciale/Pancetta in a pan until fat renders. Remove the pork, keeping the fat in the pan.",
+                    "In a bowl, whisk together the eggs, yolks, and grated Pecorino cheese, and a generous amount of black pepper.",
+                    "Drain the pasta and immediately toss it in the pan with the rendered fat.",
+                    "Remove the pan from heat. Quickly pour the egg/cheese mixture over the pasta, tossing vigorously. Add reserved pasta water a little at a time until a creamy sauce forms (the heat from the pasta cooks the egg). Serve immediately with the crispy pork."
+                ]
+            },
+            "Fettuccine Alfredo": {
+                recipeName: "Fettuccine Alfredo",
+                description: "Rich and simple Italian pasta dish where fettuccine noodles are coated in a creamy sauce made from butter and Parmesan cheese.",
+                prepTime: "5 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "12 oz fettuccine pasta",
+                    "4 tbsp butter",
+                    "1 cup heavy cream",
+                    "1.5 cups freshly grated Parmesan cheese",
+                    "Salt and freshly ground black pepper"
+                ],
+                instructions: [
+                    "Cook fettuccine according to package directions. Reserve 1/2 cup of pasta water.",
+                    "In a large skillet, melt the butter over low heat. Add the heavy cream and bring to a gentle simmer.",
+                    "Stir in the grated Parmesan cheese, whisking constantly until the sauce is smooth. Season with salt and pepper.",
+                    "Drain the pasta and transfer it immediately to the skillet with the sauce.",
+                    "Toss to coat, adding a little reserved pasta water if needed to achieve a creamy consistency. Serve immediately."
+                ]
+            },
+            "Lasagna Bolognese": {
+                recipeName: "Lasagna Bolognese",
+                description: "Classic Italian layered pasta dish featuring sheets of lasagna, a rich meat Bolognese sauce, creamy béchamel, and cheese, baked until golden.",
+                prepTime: "45 min",
+                cookTime: "50 min",
+                ingredients: [
+                    "1 box lasagna noodles",
+                    "2 cups Bolognese meat sauce (pre-made or homemade)",
+                    "3 cups Béchamel sauce (butter, flour, milk)",
+                    "2 cups shredded mozzarella cheese",
+                    "1 cup grated Parmesan cheese"
+                ],
+                instructions: [
+                    "Preheat oven to 375°F (190°C).",
+                    "Spread a thin layer of Bolognese sauce on the bottom of a 9x13 baking dish.",
+                    "Layer with lasagna noodles, followed by Bolognese, Béchamel, and a sprinkling of mozzarella/Parmesan.",
+                    "Repeat the layers until the dish is full, finishing with Béchamel and a generous layer of cheese.",
+                    "Cover with foil and bake for 35 minutes. Remove foil and bake for an additional 15 minutes, or until the top is golden brown and bubbly."
+                ]
+            },
+            "Tiramisu": {
+                recipeName: "Tiramisu",
+                description: "A popular coffee-flavored Italian dessert, meaning 'pick me up,' made of ladyfingers dipped in strong coffee, layered with a rich mixture of mascarpone and cocoa.",
+                prepTime: "30 min",
+                cookTime: "4 hours (chilling)",
+                ingredients: [
+                    "6 large egg yolks",
+                    "3/4 cup granulated sugar",
+                    "1 lb mascarpone cheese, chilled",
+                    "1.5 cups strong brewed coffee, cooled",
+                    "1/2 cup coffee liqueur (optional)",
+                    "2 packs ladyfingers (savoiardi)",
+                    "Unsweetened cocoa powder for dusting"
+                ],
+                instructions: [
+                    "Whisk egg yolks and sugar over a pot of simmering water until pale and thick (zabaione). Remove from heat and beat until cool.",
+                    "Gently fold the chilled mascarpone cheese into the egg mixture until smooth.",
+                    "Mix the cool coffee and liqueur (if using) in a shallow dish.",
+                    "Quickly dip the ladyfingers into the coffee mixture, then arrange a single layer in a serving dish.",
+                    "Spread half of the mascarpone mixture over the ladyfingers. Repeat with a second layer of dipped ladyfingers and the remaining mascarpone.",
+                    "Cover and refrigerate for at least 4 hours, or overnight. Dust with cocoa powder just before serving."
+                ]
+            },
+            "Chicken Parmigiana": {
+                recipeName: "Chicken Parmigiana",
+                description: "Crispy breaded chicken cutlets covered in marinara sauce and a generous layer of melted mozzarella and Parmesan cheese, then baked.",
+                prepTime: "20 min",
+                cookTime: "30 min",
+                ingredients: [
+                    "4 boneless, skinless chicken breasts, pounded thin",
+                    "1 cup breadcrumbs",
+                    "1/2 cup flour",
+                    "2 eggs, beaten",
+                    "2 cups marinara sauce",
+                    "1.5 cups shredded mozzarella cheese",
+                    "Oil for frying"
+                ],
+                instructions: [
+                    "Preheat oven to 375°F (190°C).",
+                    "Dredge each chicken cutlet first in flour, then egg, and finally breadcrumbs.",
+                    "Pan-fry the breaded chicken in a skillet with oil until golden brown on both sides (do not cook completely through).",
+                    "Place the chicken in a baking dish. Top each piece with marinara sauce, followed by mozzarella and Parmesan cheese.",
+                    "Bake for 15-20 minutes, until the chicken is cooked through and the cheese is melted and bubbly. Serve with pasta."
+                ]
+            },
+            "Gnocchi with Pesto": {
+                recipeName: "Gnocchi with Pesto",
+                description: "Soft Italian potato dumplings (Gnocchi) served simply with a vibrant green basil pesto sauce.",
+                prepTime: "15 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "1 lb potato gnocchi (store-bought or homemade)",
+                    "1/2 cup fresh basil pesto",
+                    "1/4 cup pine nuts, toasted (for garnish)",
+                    "1/4 cup grated Parmesan cheese",
+                    "Salt for water"
+                ],
+                instructions: [
+                    "Cook the gnocchi in boiling, salted water according to package directions. Gnocchi are done when they float to the surface (usually 2-3 minutes).",
+                    "While the gnocchi cooks, warm the pesto gently in a large skillet (do not boil).",
+                    "Drain the gnocchi and add it immediately to the skillet with the pesto.",
+                    "Toss gently to coat the dumplings completely. Add a splash of pasta water if the sauce is too thick.",
+                    "Serve immediately, topped with grated Parmesan and toasted pine nuts."
+                ]
+            },
+            "French Onion Soup": {
+                recipeName: "French Onion Soup",
+                description: "A comforting classic, based on rich beef broth and deeply caramelized onions, topped with a crouton and a thick layer of melted Gruyère cheese.",
+                prepTime: "20 min",
+                cookTime: "60 min",
+                ingredients: [
+                    "4 large yellow onions, thinly sliced",
+                    "4 tbsp butter",
+                    "1 tsp sugar (to help caramelize)",
+                    "1/2 cup dry white wine",
+                    "6 cups beef broth (rich flavor is key)",
+                    "4 slices French bread (baguette)",
+                    "1 cup grated Gruyère cheese"
+                ],
+                instructions: [
+                    "In a large pot, melt butter and add onions. Cook over low to medium heat for 45-50 minutes, stirring occasionally, until the onions are deep golden brown and heavily caramelized.",
+                    "Stir in the white wine and scrape up any browned bits. Cook for 2 minutes.",
+                    "Add the beef broth and bring to a simmer. Cook for 15 minutes.",
+                    "To serve: Pour soup into oven-safe bowls. Top with a slice of French bread and a generous layer of Gruyère cheese.",
+                    "Broil until the cheese is melted and deeply browned/bubbly. Serve immediately."
+                ]
+            },
+            "Beef Bourguignon": {
+                recipeName: "Beef Bourguignon",
+                description: "A traditional, hearty French stew where beef is braised in red wine (typically Burgundy), and flavored with mushrooms, onions, and bacon.",
+                prepTime: "30 min",
+                cookTime: "3 hours",
+                ingredients: [
+                    "2 lbs stewing beef, cubed",
+                    "6 slices bacon, cut into lardons",
+                    "1 large onion, chopped",
+                    "2 carrots, sliced",
+                    "3 cups dry red wine (Pinot Noir or Burgundy)",
+                    "2 cups beef broth",
+                    "1 cup button mushrooms",
+                    "2 tbsp tomato paste"
+                ],
+                instructions: [
+                    "In a large Dutch oven, cook the bacon until crisp. Remove bacon, leaving the fat.",
+                    "Sear the beef cubes in the bacon fat until browned on all sides. Remove beef.",
+                    "Add onions and carrots to the pot and cook until softened.",
+                    "Stir in tomato paste and flour (optional). Add the red wine and beef broth.",
+                    "Return the beef and bacon to the pot. Bring to a simmer, cover, and transfer to a 325°F (160°C) oven to braise for 3 hours, or until the meat is fork-tender. Add mushrooms during the last 30 minutes."
+                ]
+            },
+            "Paella Valenciana": {
+                recipeName: "Paella Valenciana",
+                description: "A classic Spanish rice dish originating in Valencia, cooked in a wide, shallow pan with chicken, seafood (clams/mussels), rabbit (optional), and vegetables, flavored deeply with saffron.",
+                prepTime: "30 min",
+                cookTime: "40 min",
+                ingredients: [
+                    "1 lb short-grain rice (Bomba or Arborio)",
+                    "1 lb mixed seafood (shrimp, mussels, clams)",
+                    "1/2 lb chicken, cubed",
+                    "1 onion, chopped",
+                    "1 red bell pepper, chopped",
+                    "1 tsp saffron threads, dissolved in warm broth",
+                    "4 cups chicken or fish broth",
+                    "3 tbsp olive oil"
+                ],
+                instructions: [
+                    "Heat olive oil in a paella pan or wide skillet. Sauté the chicken until browned. Remove.",
+                    "Sauté the onion and red pepper until soft. Stir in the rice for 2 minutes, then add saffron broth.",
+                    "Add the remaining broth and season. Bring to a boil, then reduce heat to low.",
+                    "Gently place the cooked chicken and the seafood into the rice.",
+                    "Cook undisturbed for 20 minutes (do not stir!) until the rice has absorbed the liquid and the seafood is cooked. The crust (socarrat) should form on the bottom."
+                ]
+            },
+            "Wiener Schnitzel": {
+                recipeName: "Wiener Schnitzel",
+                description: "The national dish of Austria: a very thin, pan-fried, breaded cutlet of veal, served with lemon.",
+                prepTime: "20 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "4 thin slices veal cutlets (or pork/chicken)",
+                    "1 cup flour",
+                    "2 eggs, beaten",
+                    "1 cup plain breadcrumbs (not panko)",
+                    "Oil or clarified butter for frying",
+                    "Salt, pepper, lemon wedges for serving"
+                ],
+                instructions: [
+                    "Pound the veal cutlets until they are very thin (about 1/8 inch). Season with salt and pepper.",
+                    "Prepare three shallow dishes: one with flour, one with beaten eggs, and one with breadcrumbs.",
+                    "Dredge each cutlet first in flour, shaking off excess, then dip in egg, and finally coat generously with breadcrumbs, pressing lightly.",
+                    "Heat oil/butter in a large skillet. Fry the schnitzel pieces in batches for 2-3 minutes per side, until golden brown and crispy.",
+                    "Drain on paper towels and serve immediately with a wedge of lemon."
+                ]
+            },
+            "Mushroom Risotto": {
+                recipeName: "Mushroom Risotto",
+                description: "A creamy Italian rice dish cooked slowly by adding warm broth, white wine, butter, and sautéed mushrooms.",
+                prepTime: "15 min",
+                cookTime: "30 min",
+                ingredients: [
+                    "1 tbsp olive oil, 2 tbsp butter",
+                    "1 shallot or small onion, minced",
+                    "8 oz cremini mushrooms, sliced",
+                    "1.5 cups Arborio rice",
+                    "1/2 cup dry white wine",
+                    "5 cups warm vegetable or chicken broth",
+                    "1/2 cup grated Parmesan cheese"
+                ],
+                instructions: [
+                    "In a large pot, sauté shallots in olive oil/butter until translucent. Add mushrooms and cook until softened.",
+                    "Add the Arborio rice and stir for 2 minutes until the edges become translucent (toasting).",
+                    "Pour in the white wine and cook until absorbed.",
+                    "Add the warm broth, one ladle at a time, stirring constantly. Wait until each ladle is mostly absorbed before adding the next. This takes about 20 minutes.",
+                    "When the rice is creamy and al dente, turn off the heat. Stir in the remaining butter and Parmesan cheese. Season and serve immediately."
+                ]
+            },
+            "Cannoli": {
+                recipeName: "Cannoli",
+                description: "Italian pastries originating in Sicily, consisting of tube-shaped, fried dough shells, filled with a sweet, creamy ricotta filling.",
+                prepTime: "45 min",
+                cookTime: "30 min (chilling)",
+                ingredients: [
+                    "1 lb whole-milk ricotta cheese",
+                    "1 cup powdered sugar",
+                    "1 tsp vanilla extract",
+                    "1/4 tsp cinnamon",
+                    "1/4 cup mini chocolate chips",
+                    "Cannoli shells (store-bought or homemade)",
+                    "Pistachios or candied fruit for garnish"
+                ],
+                instructions: [
+                    "Drain the ricotta cheese completely for at least 30 minutes (or press overnight) to remove excess moisture.",
+                    "Beat the drained ricotta with powdered sugar, vanilla, and cinnamon until light and smooth.",
+                    "Fold in the mini chocolate chips. Chill the filling for at least 30 minutes.",
+                    "Spoon the chilled filling into a piping bag and pipe it into the cannoli shells just before serving (to keep the shells crispy).",
+                    "Garnish the ends with chopped pistachios or candied fruit."
+                ]
+            },
+            "Penne alla Vodka": {
+                recipeName: "Penne alla Vodka",
+                description: "A creamy and subtly spicy pasta dish, where the vodka is used to enhance the flavor compounds of the tomato and cream sauce.",
+                prepTime: "10 min",
+                cookTime: "20 min",
+                ingredients: [
+                    "1 lb penne pasta",
+                    "2 tbsp olive oil",
+                    "1 small onion or shallot, diced",
+                    "1/2 cup tomato paste",
+                    "1/4 cup vodka",
+                    "1 cup heavy cream",
+                    "Red pepper flakes"
+                ],
+                instructions: [
+                    "Cook the penne according to package directions. Reserve 1 cup of pasta water.",
+                    "In a large skillet, heat olive oil. Sauté the onion/shallot until soft.",
+                    "Stir in the tomato paste and red pepper flakes. Cook for 2 minutes.",
+                    "Pour in the vodka and let it bubble and evaporate for 1 minute (don't worry, the alcohol cooks out).",
+                    "Stir in the heavy cream and simmer for 5 minutes.",
+                    "Toss the drained pasta into the sauce, adding reserved pasta water until the sauce coats the pasta beautifully. Serve immediately."
+                ]
+            },
+            "Gourmet Beef Burger with Caramelized Onions": {
+                recipeName: "Gourmet Beef Burger with Caramelized Onions",
+                description: "A thick beef patty seasoned simply, topped with savory, slow-cooked caramelized onions and a slice of your favorite cheese.",
+                prepTime: "15 min",
+                cookTime: "20 min",
+                ingredients: [
+                    "1 lb ground beef (80/20 mix preferred)",
+                    "2 large onions, thinly sliced (for caramelizing)",
+                    "4 hamburger buns, toasted",
+                    "4 slices cheddar or provolone cheese",
+                    "2 tbsp butter",
+                    "Salt and pepper"
+                ],
+                instructions: [
+                    "Caramelized Onions: Melt butter in a pan. Add sliced onions and cook over low heat for 30-40 minutes, stirring occasionally, until deep brown and sweet. Set aside.",
+                    "Gently form the ground beef into four equal patties (don't overwork the meat). Season generously with salt and pepper.",
+                    "Grill or pan-fry the patties for 4-5 minutes per side for medium doneness.",
+                    "During the last minute, place cheese slices on the patties to melt.",
+                    "Assemble the burger on toasted buns, topping with the caramelized onions."
+                ]
+            },
+            "Classic Cheeseburger": {
+                recipeName: "Classic Cheeseburger",
+                description: "A simple, timeless beef patty topped with American cheese, crisp lettuce, tomato, and pickles on a soft bun.",
+                prepTime: "10 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "1 lb ground beef",
+                    "4 slices American cheese",
+                    "4 hamburger buns",
+                    "Toppings: lettuce, tomato, sliced pickles, ketchup/mustard",
+                    "Salt and pepper"
+                ],
+                instructions: [
+                    "Form the ground beef into four equal patties. Season with salt and pepper.",
+                    "Cook the patties on a grill or skillet for 3-4 minutes per side, until desired doneness is reached.",
+                    "During the last minute of cooking, place a slice of cheese on each patty and let it melt.",
+                    "Toast the hamburger buns lightly.",
+                    "Assemble the burger with the patty, cheese, and desired toppings."
+                ]
+            },
+            "Beef Stroganoff": {
+                recipeName: "Beef Stroganoff",
+                description: "Tender sautéed pieces of beef served in a rich sauce with mushrooms and sour cream, typically served over egg noodles.",
+                prepTime: "20 min",
+                cookTime: "30 min",
+                ingredients: [
+                    "1 lb beef sirloin or tenderloin, thinly sliced",
+                    "8 oz button mushrooms, sliced",
+                    "1/2 onion, chopped",
+                    "2 cups beef broth",
+                    "1/2 cup sour cream",
+                    "1 tbsp flour",
+                    "12 oz egg noodles"
+                ],
+                instructions: [
+                    "Cook egg noodles according to package directions. Set aside.",
+                    "Brown the beef strips in a large skillet. Remove and set aside.",
+                    "In the same skillet, sauté the onion and mushrooms until softened.",
+                    "Sprinkle the flour over the vegetables and stir. Add the beef broth and bring to a simmer, scraping up any browned bits.",
+                    "Return the beef to the skillet. Reduce heat to low. Stir in the sour cream until combined (do not boil).",
+                    "Serve the stroganoff sauce and beef over the hot egg noodles."
+                ]
+            },
+            "Shepherd's Pie (Beef)": {
+                recipeName: "Shepherd's Pie (Beef)",
+                description: "A savory layer of seasoned ground beef and vegetables cooked in a rich gravy, topped with a thick layer of creamy mashed potatoes and baked until golden.",
+                prepTime: "30 min",
+                cookTime: "30 min",
+                ingredients: [
+                    "1.5 lbs ground beef",
+                    "4 cups mashed potatoes (prepared)",
+                    "1 onion, chopped",
+                    "1 cup mixed vegetables (peas, carrots)",
+                    "2 cups beef broth",
+                    "2 tbsp Worcestershire sauce",
+                    "1 tbsp tomato paste"
+                ],
+                instructions: [
+                    "Preheat oven to 400°F (200°C).",
+                    "In a skillet, brown the ground beef. Drain fat. Add onions and cook until soft.",
+                    "Stir in the tomato paste, Worcestershire sauce, and beef broth. Bring to a simmer.",
+                    "Stir in the mixed vegetables. Pour the mixture into a 9-inch pie dish or casserole.",
+                    "Spoon the mashed potatoes over the top, spreading to seal the edges.",
+                    "Bake for 20-30 minutes until the filling is bubbly and the potato topping is golden brown."
+                ]
+            },
+            "BBQ Pulled Pork Sandwich": {
+                recipeName: "BBQ Pulled Pork Sandwich",
+                description: "Slow-cooked pork shoulder shredded and tossed in a tangy and sweet BBQ sauce, piled high on a soft roll.",
+                prepTime: "15 min",
+                cookTime: "6 hours (slow cooking)",
+                ingredients: [
+                    "3 lb pork shoulder (Boston butt)",
+                    "1 tbsp paprika, 1 tbsp brown sugar, 1 tsp chili powder (for rub)",
+                    "1 cup BBQ sauce (your favorite)",
+                    "1/2 cup apple cider vinegar",
+                    "Soft rolls or buns",
+                    "Coleslaw (optional, for topping)"
+                ],
+                instructions: [
+                    "Rub the pork shoulder generously with the spice mixture.",
+                    "Place the pork in a slow cooker. Add BBQ sauce and apple cider vinegar.",
+                    "Cook on low for 6-8 hours, or until the pork is fork-tender.",
+                    "Remove the pork and shred it using two forks. Return the shredded meat to the slow cooker and toss it with the sauce.",
+                    "Serve the pulled pork on soft rolls, often topped with coleslaw."
+                ]
+            },
+            "Macaroni and Cheese": {
+                recipeName: "Macaroni and Cheese",
+                description: "Baked elbow macaroni pasta submerged in a rich, velvety cheese sauce, often topped with crunchy breadcrumbs.",
+                prepTime: "15 min",
+                cookTime: "35 min",
+                ingredients: [
+                    "1 lb elbow macaroni",
+                    "4 tbsp butter",
+                    "1/4 cup flour",
+                    "3 cups milk",
+                    "3 cups shredded cheese (cheddar, Gruyère, or a blend)",
+                    "1/2 cup panko breadcrumbs (optional)"
+                ],
+                instructions: [
+                    "Cook the macaroni until al dente. Drain and set aside.",
+                    "In a saucepan, melt the butter over medium heat. Whisk in the flour to form a paste (roux). Cook for 1 minute.",
+                    "Slowly whisk in the milk, cooking until the sauce thickens slightly.",
+                    "Remove from heat and stir in the shredded cheese until smooth. Season with salt and pepper.",
+                    "Combine the cheese sauce and the cooked macaroni. Pour into a baking dish.",
+                    "Top with breadcrumbs (if using). Bake at 375°F (190°C) for 20 minutes, until bubbly and the top is golden."
+                ]
+            },
+            "Chili Con Carne": {
+                recipeName: "Chili Con Carne",
+                description: "A spicy, hearty stew featuring chili peppers, meat (usually ground beef), tomatoes, and often kidney or pinto beans.",
+                prepTime: "20 min",
+                cookTime: "60 min",
+                ingredients: [
+                    "1.5 lbs ground beef",
+                    "1 large onion, chopped",
+                    "1 green bell pepper, chopped",
+                    "1 (28 oz) can crushed tomatoes",
+                    "1 (15 oz) can kidney beans, rinsed and drained",
+                    "2 tbsp chili powder, 1 tbsp cumin",
+                    "2 cups beef broth"
+                ],
+                instructions: [
+                    "Brown the ground beef in a large pot. Drain any excess fat.",
+                    "Add onions and bell peppers and cook until softened.",
+                    "Stir in the chili powder, cumin, and salt. Cook for 1 minute.",
+                    "Add crushed tomatoes, beef broth, and kidney beans. Bring to a boil.",
+                    "Reduce heat to low and simmer, uncovered, for at least 1 hour, or longer for deeper flavor. Serve with toppings like shredded cheese or sour cream."
+                ]
+            },
+            "Steak Frites": {
+                recipeName: "Steak Frites",
+                description: "A simple, classic French bistro dish consisting of pan-seared steak (usually sirloin or flank) served alongside thin-cut French fries.",
+                prepTime: "10 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "2 (8 oz) sirloin steaks",
+                    "1 lb Russet potatoes, cut into thin fries",
+                    "3 tbsp oil (vegetable or canola)",
+                    "2 tbsp butter",
+                    "2 cloves garlic, smashed",
+                    "Thyme sprigs",
+                    "Salt and freshly cracked pepper"
+                ],
+                instructions: [
+                    "Prepare the fries: Toss potatoes with oil and bake/air fry until crispy, or deep fry. Season with salt.",
+                    "Pat the steaks dry and season generously with salt and pepper.",
+                    "Heat 1 tbsp oil in a cast-iron skillet until smoking. Sear steaks for 3-4 minutes per side for medium-rare.",
+                    "Reduce heat. Add butter, garlic, and thyme to the pan. Baste the steaks for 1 minute.",
+                    "Rest the steaks for 5 minutes before slicing and serving immediately with the hot fries."
+                ]
+            },
+            "Meatloaf": {
+                recipeName: "Meatloaf",
+                description: "A classic American dinner: a loaf of ground meat mixed with seasonings, eggs, and breadcrumbs, baked, and usually topped with a sweet and tangy glaze.",
+                prepTime: "20 min",
+                cookTime: "60 min",
+                ingredients: [
+                    "1.5 lbs ground beef",
+                    "1/2 cup breadcrumbs (or rolled oats)",
+                    "1/2 cup milk",
+                    "1 egg, beaten",
+                    "1/2 onion, finely chopped",
+                    "2 tbsp Worcestershire sauce",
+                    "Glaze: 1/2 cup ketchup, 2 tbsp brown sugar, 1 tsp vinegar"
+                ],
+                instructions: [
+                    "Preheat oven to 350°F (175°C).",
+                    "In a large bowl, combine the ground beef, breadcrumbs, milk, egg, onion, Worcestershire sauce, salt, and pepper. Mix gently until just combined.",
+                    "Form the mixture into a loaf shape and place it in a loaf pan.",
+                    "Mix the glaze ingredients and spread half of it over the top of the meatloaf.",
+                    "Bake for 45 minutes. Spread the remaining glaze over the top and bake for another 15 minutes, until the internal temperature reaches 160°F (71°C)."
+                ]
+            },
+            "Caesar Salad": {
+                recipeName: "Caesar Salad",
+                description: "A crisp salad of romaine lettuce and crunchy croutons, dressed in a signature emulsion of lemon juice, olive oil, egg yolk, Worcestershire sauce, anchovies, garlic, and Parmesan cheese.",
+                prepTime: "15 min",
+                cookTime: "0 min",
+                ingredients: [
+                    "1 head romaine lettuce, torn into pieces",
+                    "1 cup croutons (homemade preferred)",
+                    "1/2 cup grated Parmesan cheese",
+                    "Dressing: 1/4 cup olive oil, 1 egg yolk, 1 tbsp lemon juice, 1/2 tsp Dijon mustard, 1 clove garlic minced, 2 anchovy fillets minced (optional)"
+                ],
+                instructions: [
+                    "In a small bowl, whisk together all dressing ingredients until emulsified and creamy. Season with salt and pepper.",
+                    "In a large bowl, combine the torn romaine lettuce and croutons.",
+                    "Pour the dressing over the lettuce and toss gently to coat.",
+                    "Transfer to serving bowls and grate or sprinkle extra Parmesan cheese over the top before serving."
+                ]
+            },
+            "Pancakes (Fluffy)": {
+                recipeName: "Pancakes (Fluffy)",
+                description: "Thick, light, and airy pancakes, perfect for breakfast, typically made with buttermilk and topped with syrup and butter.",
+                prepTime: "10 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "1.5 cups all-purpose flour",
+                    "1 tbsp baking powder",
+                    "1 tsp baking soda",
+                    "1 tbsp sugar",
+                    "1.5 cups buttermilk (or milk with a tsp of vinegar)",
+                    "1 large egg",
+                    "2 tbsp melted butter, plus extra for the griddle"
+                ],
+                instructions: [
+                    "In a large bowl, whisk together the flour, baking powder, baking soda, and sugar.",
+                    "In a separate bowl, whisk together the buttermilk, egg, and melted butter.",
+                    "Pour the wet ingredients into the dry ingredients. Whisk until just combined (lumps are okay, do not overmix!).",
+                    "Heat a lightly buttered griddle or non-stick pan over medium heat.",
+                    "Pour 1/4 cup batter onto the griddle for each pancake. Cook until bubbles appear on the surface (about 2 minutes).",
+                    "Flip and cook the other side until golden brown (about 1-2 minutes). Serve hot with syrup."
+                ]
+            },
+            "Waffles": {
+                recipeName: "Waffles",
+                description: "Crispy-on-the-outside, soft-on-the-inside squares cooked in a patterned waffle iron, ideal for holding butter and syrup.",
+                prepTime: "10 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "2 cups all-purpose flour",
+                    "1 tbsp baking powder",
+                    "1/2 tsp salt",
+                    "2 tbsp sugar",
+                    "2 large eggs, separated",
+                    "1.5 cups milk",
+                    "1/2 cup melted butter or oil"
+                ],
+                instructions: [
+                    "In a large bowl, whisk together the flour, baking powder, salt, and sugar.",
+                    "In a separate bowl, whisk the milk, egg yolks, and melted butter/oil.",
+                    "Pour the wet ingredients into the dry ingredients and mix until just combined.",
+                    "In a clean bowl, beat the egg whites until stiff peaks form. Gently fold the egg whites into the batter.",
+                    "Preheat and lightly grease your waffle iron.",
+                    "Pour the batter into the hot iron and cook until the waffle is golden brown and crispy, according to your waffle iron's instructions. Serve immediately with your favorite toppings."
+                ]
+            },
+            "Fried Chicken (Southern Style)": {
+                recipeName: "Fried Chicken (Southern Style)",
+                description: "Chicken pieces coated in a seasoned flour mixture and pan-fried or deep-fried until the crust is irresistibly crispy and the meat is juicy.",
+                prepTime: "30 min",
+                cookTime: "25 min",
+                ingredients: [
+                    "2 lbs bone-in, skin-on chicken pieces (drumsticks, thighs)",
+                    "2 cups all-purpose flour",
+                    "1 tbsp paprika, 1 tsp cayenne pepper, 1 tbsp salt, 1 tsp pepper",
+                    "1 cup buttermilk",
+                    "Vegetable oil or peanut oil for frying"
+                ],
+                instructions: [
+                    "Mix the flour and all the seasonings in a large shallow dish.",
+                    "Soak the chicken pieces in buttermilk for at least 15 minutes.",
+                    "Dredge each piece of chicken first in the seasoned flour, then dip it back briefly in the buttermilk, and dredge again heavily in the flour (double dipping is key for crispness).",
+                    "Heat 1 inch of oil in a large, heavy skillet to 325°F (160°C).",
+                    "Fry the chicken in batches for 6-8 minutes per side, turning occasionally, until golden brown and cooked through (internal temp 165°F/74°C). Drain on a wire rack."
+                ]
+            },
+            "Tacos (Ground Beef)": {
+                recipeName: "Tacos (Ground Beef)",
+                description: "Classic American-style tacos: crunchy or soft tortillas filled with seasoned ground beef and traditional toppings like shredded lettuce, cheese, and salsa.",
+                prepTime: "15 min",
+                cookTime: "20 min",
+                ingredients: [
+                    "1 lb ground beef",
+                    "1 packet taco seasoning",
+                    "1/2 cup water",
+                    "12 taco shells (hard or soft)",
+                    "Toppings: shredded lettuce, shredded cheddar cheese, diced tomatoes, salsa, sour cream"
+                ],
+                instructions: [
+                    "Brown the ground beef in a skillet. Drain any excess fat.",
+                    "Stir in the taco seasoning and 1/2 cup of water. Simmer until the water is mostly absorbed and the meat is flavorful.",
+                    "Warm the taco shells/tortillas according to package directions.",
+                    "Fill each shell with a spoonful of the seasoned ground beef.",
+                    "Top with shredded lettuce, cheese, tomatoes, and your desired sauces. Serve immediately."
+                ]
+            },
+            "New England Clam Chowder": {
+                recipeName: "New England Clam Chowder",
+                description: "A thick, creamy, white soup containing clams, diced potatoes, onions, and often salted pork (bacon or salt pork).",
+                prepTime: "20 min",
+                cookTime: "40 min",
+                ingredients: [
+                    "4 slices bacon or 2 oz salt pork, diced",
+                    "1 onion, diced",
+                    "3 medium Russet potatoes, peeled and diced",
+                    "4 tbsp butter",
+                    "1/4 cup flour",
+                    "2 cups milk, 1 cup heavy cream",
+                    "2 (6.5 oz) cans chopped clams, drained (reserve juice)"
+                ],
+                instructions: [
+                    "In a large pot, cook the bacon/salt pork until crisp. Remove pork, reserving 2 tbsp fat.",
+                    "Sauté the onion in the reserved fat until soft. Add the potatoes and cook for 5 minutes.",
+                    "Add the reserved clam juice and 1 cup of water. Simmer until potatoes are tender.",
+                    "In a separate small pan, melt butter. Whisk in flour to make a roux. Cook for 1 minute.",
+                    "Slowly whisk in the milk and cream into the roux. Pour this mixture into the potato mixture.",
+                    "Stir in the chopped clams and crispy bacon. Simmer gently for 10 minutes until thick (do not boil). Serve hot."
+                ]
+            },
+            "Chicken Stir Fry (Easy)": {
+                recipeName: "Chicken Stir Fry (Easy)",
+                description: "A quick and simple weeknight meal featuring strips of chicken and assorted mixed vegetables tossed in a savory Asian sauce.",
+                prepTime: "20 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "1 lb boneless, skinless chicken breast, sliced",
+                    "3 cups mixed vegetables (broccoli, bell peppers, snap peas)",
+                    "2 tbsp soy sauce",
+                    "1 tbsp brown sugar",
+                    "1 tbsp cornstarch",
+                    "1 tbsp sesame oil",
+                    "Cooked rice for serving"
+                ],
+                instructions: [
+                    "Mix soy sauce, brown sugar, and cornstarch with 1/4 cup water to create the sauce. Set aside.",
+                    "Heat sesame oil in a wok or large skillet over high heat. Add chicken and stir fry until cooked through.",
+                    "Remove the chicken and set aside.",
+                    "Add the mixed vegetables to the wok and stir fry for 5 minutes until tender-crisp.",
+                    "Return the chicken to the wok. Pour the sauce mixture over the ingredients and stir until the sauce thickens and coats everything. Serve immediately over rice."
+                ]
+            },
+            "Pad Thai (Chicken)": {
+                recipeName: "Pad Thai (Chicken)",
+                description: "A popular Thai stir-fried rice noodle dish with chicken, peanuts, bean sprouts, and a signature sweet-sour-salty sauce.",
+                prepTime: "20 min",
+                cookTime: "20 min",
+                ingredients: [
+                    "8 oz flat rice noodles",
+                    "1/2 lb chicken, thinly sliced",
+                    "2 large eggs, beaten",
+                    "1 cup bean sprouts",
+                    "1/2 cup peanuts, chopped",
+                    "Sauce: 2 tbsp fish sauce, 2 tbsp sugar, 1 tbsp tamarind paste, chili powder (optional)"
+                ],
+                instructions: [
+                    "Soak rice noodles in hot water until flexible (al dente). Drain.",
+                    "In a wok or large skillet, scramble the eggs and set aside.",
+                    "Add oil and stir-fry the chicken until cooked. Push to one side.",
+                    "Add the drained noodles and the prepared sauce to the wok. Toss everything together until the noodles are coated.",
+                    "Stir in the bean sprouts, chopped peanuts, and the scrambled egg. Toss briefly and serve immediately with a lime wedge."
+                ]
+            },
+            "Sushi Rolls (Simple Tuna)": {
+                recipeName: "Sushi Rolls (Simple Tuna)",
+                description: "Beginner-friendly Japanese rice rolls (Maki) filled with sushi rice, Nori seaweed, and simple tuna.",
+                prepTime: "30 min",
+                cookTime: "0 min",
+                ingredients: [
+                    "1 cup sushi rice, cooked and seasoned (rice vinegar, sugar, salt)",
+                    "4 sheets Nori seaweed",
+                    "1 (5 oz) can tuna, mixed with a little mayonnaise (or fresh tuna strips)",
+                    "Wasabi and soy sauce for serving",
+                    "Bamboo rolling mat"
+                ],
+                instructions: [
+                    "Lay a sheet of Nori, shiny-side down, on a bamboo rolling mat.",
+                    "Spread a thin, even layer of seasoned sushi rice over the Nori, leaving a 1-inch border at the far edge.",
+                    "Place a thin line of tuna filling near the bottom edge of the rice.",
+                    "Using the mat, tightly roll the sushi, moistening the far edge of the Nori with water to seal it.",
+                    "Slice the roll into 6-8 pieces using a sharp, wet knife. Serve with soy sauce and wasabi."
+                ]
+            },
+            "Miso Soup": {
+                recipeName: "Miso Soup",
+                description: "A traditional Japanese soup consisting of a dashi stock, softened miso paste, tofu cubes, and dried seaweed (wakame).",
+                prepTime: "5 min",
+                cookTime: "10 min",
+                ingredients: [
+                    "4 cups Dashi stock (Japanese soup stock)",
+                    "3 tbsp white or red miso paste",
+                    "1/2 cup cubed soft tofu",
+                    "1/4 cup dried wakame seaweed",
+                    "Chopped scallions for garnish"
+                ],
+                instructions: [
+                    "Bring the Dashi stock to a gentle simmer in a saucepan.",
+                    "In a small bowl, whisk the miso paste with a little bit of the warm Dashi until smooth.",
+                    "Add the cubed tofu and wakame seaweed to the simmering Dashi. Cook for 2 minutes.",
+                    "Remove the soup from the heat. Stir in the dissolved miso paste (do not boil Miso soup).",
+                    "Serve immediately in small bowls, garnished with chopped scallions."
+                ]
+            },
+            "Pork Dumplings (Gyoza)": {
+                recipeName: "Pork Dumplings (Gyoza)",
+                description: "Savory Japanese dumplings filled with ground pork and vegetables, pan-fried on the bottom for a crispy crust and steamed on top.",
+                prepTime: "45 min",
+                cookTime: "20 min",
+                ingredients: [
+                    "30 Gyoza/Dumpling wrappers (round)",
+                    "1/2 lb ground pork",
+                    "1 cup shredded cabbage",
+                    "2 tbsp soy sauce, 1 tsp sesame oil",
+                    "1 tbsp ginger, grated",
+                    "Oil for frying"
+                ],
+                instructions: [
+                    "Combine ground pork, shredded cabbage, soy sauce, sesame oil, and grated ginger. Mix well.",
+                    "Place a spoonful of filling in the center of a wrapper. Moisten the edges with water.",
+                    "Fold the wrapper in half and create small pleats along the curved edge to seal the dumpling.",
+                    "Heat 1 tbsp oil in a non-stick pan. Place dumplings flat-side down and cook until the bottoms are golden brown.",
+                    "Add 1/4 cup of water to the pan and immediately cover. Steam for 5-7 minutes until the filling is cooked through. Serve with dipping sauce."
+                ]
+            },
+            "Grilled Salmon with Asparagus": {
+                recipeName: "Grilled Salmon with Asparagus",
+                description: "Salmon fillets and asparagus spears grilled with simple seasoning, lemon, and herbs for a healthy and quick meal.",
+                prepTime: "10 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "2 salmon fillets (about 6 oz each)",
+                    "1 bunch asparagus, ends trimmed",
+                    "2 tbsp olive oil",
+                    "1 lemon, sliced",
+                    "Salt, pepper, dried dill"
+                ],
+                instructions: [
+                    "Preheat grill or grill pan to medium-high heat.",
+                    "Toss the asparagus with 1 tbsp olive oil, salt, and pepper.",
+                    "Rub the salmon fillets with the remaining olive oil, salt, pepper, and dill.",
+                    "Grill the salmon skin-side down for 5-7 minutes, then flip and grill for another 3-5 minutes until cooked through (internal temp 145°F/63°C).",
+                    "Grill the asparagus alongside the salmon for 5-8 minutes until tender-crisp. Serve the salmon with lemon slices."
+                ]
+            },
+            "Fish and Chips (Cod)": {
+                recipeName: "Fish and Chips (Cod)",
+                description: "A classic British takeaway meal: battered and deep-fried white fish (usually Cod or Haddock) served with thick-cut French fries.",
+                prepTime: "20 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "1 lb Cod or Haddock fillets, cut into portions",
+                    "1.5 cups self-rising flour",
+                    "1 cup cold beer (lager or pale ale)",
+                    "1 lb potatoes, cut into thick fries (chips)",
+                    "Salt and vinegar",
+                    "Oil for deep frying"
+                ],
+                instructions: [
+                    "Fry the potatoes: Blanch (fry once at low temperature) the chips, then remove. Fry a second time at high temperature until golden and crisp.",
+                    "For the batter: Whisk together the flour, a pinch of salt, and the cold beer until just combined (don't overmix).",
+                    "Pat the fish dry. Dip each piece into the batter, ensuring full coverage.",
+                    "Fry the battered fish in the hot oil (375°F/190°C) for 5-7 minutes, until the crust is golden and the fish is flaky and cooked through.",
+                    "Drain fish and chips. Serve immediately with a sprinkle of salt and a generous splash of malt vinegar."
+                ]
+            },
+            "Chicken Curry (Thai Green)": {
+                recipeName: "Chicken Curry (Thai Green)",
+                description: "A vibrant, aromatic Thai curry made with green chilies, coconut milk, Thai basil, bamboo shoots, and tender chicken pieces.",
+                prepTime: "20 min",
+                cookTime: "30 min",
+                ingredients: [
+                    "1 lb chicken breast, sliced thin",
+                    "1 (13.5 oz) can full-fat coconut milk",
+                    "3 tbsp green curry paste (store-bought)",
+                    "1 cup mixed vegetables (bamboo shoots, bell pepper)",
+                    "1 tbsp fish sauce",
+                    "1 tsp sugar",
+                    "Fresh Thai basil leaves"
+                ],
+                instructions: [
+                    "Heat 1/4 cup of the thick part of the coconut milk in a pot. Add the green curry paste and cook for 2 minutes until fragrant.",
+                    "Add the chicken slices and cook until they are sealed.",
+                    "Pour in the remaining coconut milk, fish sauce, and sugar. Bring to a simmer.",
+                    "Add the mixed vegetables. Simmer for 15-20 minutes, until the chicken is cooked through and the vegetables are tender.",
+                    "Stir in a handful of fresh Thai basil leaves just before serving over jasmine rice."
+                ]
+            },
+            "Ramen (Shoyu)": {
+                recipeName: "Ramen (Shoyu)",
+                description: "Japanese noodle soup with a light, flavorful soy-sauce-based broth (Shoyu), served with ramen noodles and classic toppings like sliced pork and soft-boiled eggs.",
+                prepTime: "30 min",
+                cookTime: "30 min",
+                ingredients: [
+                    "4 cups chicken or pork broth",
+                    "1/4 cup soy sauce (Shoyu)",
+                    "2 servings dried ramen noodles",
+                    "Toppings: Sliced pork (Chashu), 2 soft-boiled eggs, nori seaweed, chopped scallions",
+                    "Ginger, garlic, and sesame oil for flavoring"
+                ],
+                instructions: [
+                    "Bring the broth to a simmer. Add the soy sauce, a little ginger, and garlic. Keep warm.",
+                    "Cook the ramen noodles according to package directions. Drain.",
+                    "Divide the noodles into two large bowls.",
+                    "Pour the hot broth over the noodles.",
+                    "Garnish generously with sliced pork, a halved soft-boiled egg, nori, and scallions. Drizzle with a little sesame oil."
+                ]
+            },
+            "Bibimbap": {
+                recipeName: "Bibimbap",
+                description: "A popular Korean dish meaning 'mixed rice,' served as a bowl of warm white rice topped with various seasoned sautéed vegetables, meat (usually beef), and a fried egg, often mixed with Gochujang (chili pepper paste).",
+                prepTime: "40 min",
+                cookTime: "25 min",
+                ingredients: [
+                    "2 cups cooked white rice",
+                    "1/2 lb ground beef or sliced beef (marinated)",
+                    "Assorted vegetables (spinach, carrots, mushrooms, bean sprouts)",
+                    "2 large eggs",
+                    "Gochujang (Korean chili paste)",
+                    "Sesame oil, garlic, soy sauce for seasoning vegetables"
+                ],
+                instructions: [
+                    "Season and quickly sauté each vegetable separately (e.g., spinach with garlic, carrots with sesame oil). Set aside.",
+                    "Cook the ground/sliced beef in a skillet with a little soy sauce until browned. Set aside.",
+                    "Fry the two eggs sunny-side up.",
+                    "Assemble the bowl: Place a layer of rice on the bottom.",
+                    "Artistically arrange small portions of each sautéed vegetable and the cooked meat around the rice.",
+                    "Place the fried egg in the center. Serve with a generous dollop of Gochujang on top, to be mixed in before eating."
+                ]
+            },
+            "Pho (Vietnamese)": {
+                recipeName: "Pho (Vietnamese)",
+                description: "A fragrant Vietnamese noodle soup consisting of warm, spiced broth, rice noodles, fresh herbs (cilantro, mint, basil), and thin slices of meat (beef or chicken).",
+                prepTime: "60 min",
+                cookTime: "4 hours (broth)",
+                ingredients: [
+                    "4 cups beef or chicken bone broth",
+                    "Spices: star anise, cinnamon sticks, cloves, cardamom (toasted)",
+                    "1 lb flat rice noodles (Banh Pho)",
+                    "1/2 lb very thinly sliced beef sirloin or chicken",
+                    "Fresh garnishes: bean sprouts, lime wedges, jalapeño, Thai basil, cilantro"
+                ],
+                instructions: [
+                    "Prepare the broth: Simmer the bone broth with the toasted spices (star anise, etc.) for at least 3-4 hours for deep flavor. Strain and keep warm.",
+                    "Cook the rice noodles according to package directions until tender. Drain and divide into two large bowls.",
+                    "Arrange the very thin slices of raw beef (or cooked chicken) on top of the noodles.",
+                    "Ladle the piping hot broth over the meat (the heat of the broth cooks the meat).",
+                    "Serve immediately with a plate of fresh garnishes for the diner to add as desired."
+                ]
+            },
+            "Spring Rolls (Veg)": {
+                recipeName: "Spring Rolls (Veg)",
+                description: "Crispy fried dough wrappers filled with a savory mixture of shredded vegetables (cabbage, carrots, glass noodles).",
+                prepTime: "30 min",
+                cookTime: "15 min",
+                ingredients: [
+                    "20 spring roll wrappers (thin dough sheets)",
+                    "2 cups shredded cabbage and carrots",
+                    "1/2 cup cooked glass noodles (cellophane noodles)",
+                    "2 tbsp soy sauce, 1 tsp sesame oil",
+                    "1 tbsp ginger, minced",
+                    "Oil for frying",
+                    "Water/flour paste for sealing"
+                ],
+                instructions: [
+                    "In a wok, stir-fry shredded cabbage, carrots, ginger, and noodles until tender-crisp. Season with soy sauce and sesame oil. Let the filling cool completely.",
+                    "Lay a spring roll wrapper flat. Place a spoonful of filling near one corner.",
+                    "Fold the corner over the filling, fold in the sides like an envelope, and roll up tightly.",
+                    "Seal the final edge with a flour/water paste.",
+                    "Deep-fry the spring rolls in hot oil (350°F/175°C) for 3-5 minutes until golden brown and crispy. Serve with sweet chili sauce."
+                ]
+            },
+            "Tempura Shrimp": {
+                recipeName: "Tempura Shrimp",
+                description: "Shrimp battered and deep-fried in the delicate Japanese Tempura style, resulting in a light, lacy, and super-crispy coating.",
+                prepTime: "20 min",
+                cookTime: "10 min",
+                ingredients: [
+                    "1 lb large shrimp, peeled and deveined",
+                    "1 cup Tempura flour mix (or all-purpose flour)",
+                    "1 large egg yolk",
+                    "1 cup ice-cold water (essential for crispness)",
+                    "Oil for deep frying",
+                    "Salt for seasoning"
+                ],
+                instructions: [
+                    "Pat the shrimp very dry. Make small slits on the belly of the shrimp to prevent curling.",
+                    "Whisk the egg yolk into the ice-cold water. Gently mix in the Tempura flour (lumps are fine and desired). Do not overmix.",
+                    "Heat oil in a deep pot to 340°F (170°C).",
+                    "Dip the shrimp one by one into the cold batter.",
+                    "Fry in batches for 2-3 minutes, turning once, until the batter is light golden and crispy. Drain on a wire rack and sprinkle with salt. Serve with Tentsuyu dipping sauce."
+                ]
+            },
+            "Chicken Korma": {
+                recipeName: "Chicken Korma",
+                description: "A mild, creamy curry where chicken is cooked in a rich, yogurt or cream-based sauce with ground nuts (almonds or cashews) and subtle spices.",
+                prepTime: "25 min",
+                cookTime: "40 min",
+                ingredients: [
+                    "1.5 lbs boneless chicken, cubed",
+                    "1 large onion, pureed",
+                    "1/2 cup plain yogurt (or heavy cream)",
+                    "1/4 cup almond or cashew paste",
+                    "1 tbsp ginger-garlic paste",
+                    "1 tsp cardamom powder, 1 tsp cumin",
+                    "2 tbsp oil"
+                ],
+                instructions: [
+                    "Marinate the chicken in yogurt, ginger-garlic paste, and a pinch of salt for 15 minutes.",
+                    "Heat oil and sauté the pureed onion until golden brown.",
+                    "Add the almond/cashew paste, cardamom, and cumin. Cook for 2 minutes.",
+                    "Add the marinated chicken and seal it on all sides.",
+                    "Add 1 cup of water, cover, and simmer for 30 minutes until the chicken is tender and the sauce is thick. Serve with rice or naan."
+                ]
+            },
+            "Jerk Chicken": {
+                recipeName: "Jerk Chicken",
+                description: "A bold and flavorful chicken dish from Jamaica, characterized by a potent dry rub or marinade using allspice, Scotch bonnet peppers, and thyme.",
+                prepTime: "120 min (marinating)",
+                cookTime: "60 min",
+                ingredients: [
+                    "2 lbs bone-in chicken pieces",
+                    "1 Scotch bonnet pepper (or habanero), minced (handle with care!)",
+                    "1 large onion, chopped",
+                    "4 scallions, chopped",
+                    "1 tbsp allspice berries, ground",
+                    "1 tbsp brown sugar",
+                    "2 tbsp soy sauce",
+                    "1 tbsp fresh thyme leaves"
+                ],
+                instructions: [
+                    "Blend the Scotch bonnet, onion, scallions, allspice, brown sugar, thyme, soy sauce, and salt to create the jerk marinade.",
+                    "Rub the marinade generously all over the chicken pieces. Marinate for at least 2 hours, or preferably overnight.",
+                    "Preheat grill or oven to medium heat (around 350°F/175°C).",
+                    "Grill or bake the chicken for 45-60 minutes, turning every 15 minutes, until the internal temperature reaches 165°F (74°C). The outside should be charred and flavorful."
+                ]
+            }
+        };
+
+
+        // --- Firebase Initialization and Auth ---
+        if (firebaseConfig) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    currentUserId = user.uid;
+                    document.getElementById('user-id-display').textContent = currentUserId;
+                } else {
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Firebase Auth Error:", error);
+                        document.getElementById('user-id-display').textContent = "Authentication Failed";
+                    }
+                }
+            });
+        }
+        
+        // --- Menu Rendering and Interaction ---
+
+        /**
+         * Renders the fixed menu structure in the left panel.
+         */
+        function renderRecipeMenu() {
+            try {
+                const menuContainer = document.getElementById('recipe-menu');
+                menuContainer.innerHTML = ''; // Clear existing content
+
+                for (const category in RECIPE_MENU) {
+                    const categoryDiv = document.createElement('div');
+                    categoryDiv.className = 'rounded-xl shadow-md overflow-hidden border border-secondary';
+
+                    // Category Header (Accordion)
+                    const header = document.createElement('div');
+                    header.className = 'p-3 bg-primary text-white font-bold cursor-pointer hover:bg-emerald-700 transition duration-150 flex justify-between items-center';
+                    header.textContent = category;
+                    header.setAttribute('role', 'button');
+                    header.setAttribute('aria-expanded', 'false');
+                    header.onclick = (e) => {
+                        const content = e.currentTarget.nextElementSibling;
+                        const isExpanded = content.classList.toggle('hidden');
+                        e.currentTarget.setAttribute('aria-expanded', !isExpanded);
+                    };
+                    categoryDiv.appendChild(header);
+
+                    // Dish List Content
+                    const content = document.createElement('ul');
+                    content.className = 'hidden bg-white p-2 space-y-1'; // Initially hidden
+                    
+                    RECIPE_MENU[category].forEach(dishName => {
+                        const listItem = document.createElement('li');
+                        listItem.className = 'py-2 px-3 text-gray-700 cursor-pointer hover:bg-secondary rounded-lg transition duration-100';
+                        listItem.textContent = dishName;
+                        listItem.onclick = () => window.selectRecipeFromMenu(dishName);
+                        content.appendChild(listItem);
+                    });
+                    categoryDiv.appendChild(content);
+
+                    menuContainer.appendChild(categoryDiv);
+                }
+            } catch(e) {
+                console.error("Error rendering recipe menu:", e);
+            }
+        }
+        
+        /**
+         * Selects a recipe name and populates the input field.
+         * @param {string} dishName The name of the selected dish.
+         */
+        window.selectRecipeFromMenu = (dishName) => {
+            document.getElementById('recipe-name-input').value = dishName;
+            
+            // Ensure only the initial prompt shows after selection
+            document.getElementById('recipe-content').classList.add('hidden');
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('initial-prompt').classList.remove('hidden');
+            
+            // Update initial prompt to prompt user to click button
+            document.getElementById('initial-prompt').querySelector('p').textContent = `Ready to cook "${dishName}"? Click 'Generate Recipe'!`;
+        };
+        
+        // CRITICAL: Initialize the menu immediately after script loads
+        renderRecipeMenu();
+
+        
+        // --- LOCAL RECIPE LOOKUP (Replaced API Call) ---
+
+        /**
+         * Looks up the recipe details from the hardcoded internal data.
+         * @param {string} dishName The exact name of the dish.
+         * @returns {Object | null} The recipe object or null if not found.
+         */
+        function getLocalRecipe(dishName) {
+            return HARDCODED_RECIPES[dishName] || null;
+        }
+
+        /**
+         * Displays a single selected recipe.
+         * @param {Object} recipe The recipe object to display.
+         */
+        function displayRecipe(recipe) {
+            document.getElementById('initial-prompt').classList.add('hidden');
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('recipe-content').classList.remove('hidden');
+            
+            // Add prep/cook time to title
+            document.getElementById('recipe-title').innerHTML = `${recipe.recipeName} <span class="text-xl font-normal text-gray-500 ml-2">(${recipe.prepTime || 'N/A'} Prep / ${recipe.cookTime || 'N/A'} Cook)</span>`;
+            document.getElementById('recipe-description').textContent = recipe.description;
+
+            // --- Ingredients List ---
+            const ingredientsList = document.getElementById('ingredients-list');
+            const ingredientsArray = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+            ingredientsList.innerHTML = ingredientsArray.map(ing => `<li>${ing}</li>`).join('');
+
+            // --- Instructions List ---
+            const instructionsList = document.getElementById('instructions-list');
+            const instructionsArray = Array.isArray(recipe.instructions) ? recipe.instructions : [];
+            
+            const instructionsHtml = instructionsArray.map((step, index) => {
+                const cleanStep = typeof step === 'string' ? step.trim() : String(step);
+                return `<li class="mb-2"><span class="font-semibold text-primary">Step ${index + 1}:</span> ${cleanStep}</li>`;
+            }).join('');
+            
+            instructionsList.innerHTML = instructionsHtml;
+
+            // Hide Grounding Sources section as data is internal
+            document.getElementById('grounding-section').classList.add('hidden');
+            document.getElementById('grounding-sources').innerHTML = '';
+        }
+
+        // --- Recipe Generation Handler ---
+        document.getElementById('recipe-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const dishName = document.getElementById('recipe-name-input').value.trim();
+
+            if (!dishName) {
+                document.getElementById('initial-prompt').classList.remove('hidden');
+                document.getElementById('initial-prompt').querySelector('p').textContent = 'Please select a dish from the menu on the left first!';
+                return;
+            }
+
+            // Start "Loading" (will be instant, but keeps logic structure clean)
+            document.getElementById('initial-prompt').classList.add('hidden');
+            document.getElementById('recipe-content').classList.add('hidden');
+            document.getElementById('loading-state').classList.remove('hidden');
+            document.getElementById('loading-description').textContent = `Looking up recipe for: ${dishName}`;
+
+
+            const recipe = getLocalRecipe(dishName);
+
+            if (recipe) {
+                displayRecipe(recipe);
+                
+                // Optional: Save the last displayed recipe to Firestore for persistence
+                if (db && currentUserId) {
+                    try {
+                        const docRef = doc(db, `artifacts/${appId}/users/${currentUserId}/recipes`, 'last_displayed');
+                        await setDoc(docRef, { 
+                            recipeName: recipe.recipeName, // Save simpler structure for Firestore
+                            prepTime: recipe.prepTime,
+                            cookTime: recipe.cookTime,
+                            timestamp: new Date().toISOString()
+                        });
+                    } catch (error) {
+                         console.error("Firestore save failed:", error);
+                    }
+                }
+
+            } else {
+                document.getElementById('loading-state').classList.add('hidden');
+                document.getElementById('initial-prompt').classList.remove('hidden');
+                document.getElementById('initial-prompt').querySelector('p').textContent = `ERROR: Recipe not found for "${dishName}". Please select from the menu.`;
+            }
+            
+        });
+    </script>
+</body>
+</html>

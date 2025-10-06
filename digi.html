@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Clock</title>
+    <!-- Load Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    // Use a monospaced font for a classic digital clock look
+                    fontFamily: {
+                        mono: ['Share Tech Mono', 'monospace'],
+                    },
+                    colors: {
+                        'background-dark': '#282c34',
+                        'clock-color': '#61dafb',
+                        'container-bg': '#1e2024',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Custom Google Font for digital look -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        /* Ensures the body takes up the full viewport height and centers the clock */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="bg-background-dark">
+
+    <div class="clock-container 
+                p-8 md:p-12 
+                bg-container-bg 
+                rounded-3xl 
+                shadow-2xl 
+                border-4 border-clock-color 
+                text-center 
+                transform transition-all duration-300 hover:scale-[1.05]">
+        
+        <!-- Project Requirement 1: User Interface -->
+        <h1 
+            class="clock font-mono 
+                   text-6xl sm:text-7xl md:text-8xl 
+                   font-extrabold 
+                   text-clock-color 
+                   tracking-widest" 
+            id="clock">
+            00:00:00 AM
+        </h1>
+        
+        <!-- Optional: Date Display (Extra Challenge 1) -->
+        <p id="dateDisplay" class="font-mono text-xl text-gray-400 mt-4"></p>
+    </div>
+
+    <script>
+        // --- Project Requirement 2 & 3: Functionality & Dynamic Update ---
+
+        /**
+         * Pads a number with a leading zero if it is less than 10.
+         * @param {number} value The number to pad.
+         * @returns {string} The padded number string.
+         */
+        function pad(value) {
+            return value < 10 ? '0' + value : value;
+        }
+
+        /**
+         * Fetches the current time and date, formats it, and updates the DOM.
+         */
+        function updateClock() {
+            // Get the current time
+            const now = new Date();
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+            let seconds = now.getSeconds();
+            
+            // Determine AM/PM and convert to 12-hour format
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; // '0' should be '12'
+
+            // Format all parts with leading zeros
+            const displayHours = pad(hours);
+            const displayMinutes = pad(minutes);
+            const displaySeconds = pad(seconds);
+            
+            // Display the time in HH:MM:SS AM/PM format
+            const timeString = `${displayHours}:${displayMinutes}:${displaySeconds} ${ampm}`;
+            document.getElementById('clock').innerText = timeString;
+
+            // Update Date (Extra Challenge 1)
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const dateString = now.toLocaleDateString('en-US', dateOptions);
+            document.getElementById('dateDisplay').innerText = dateString;
+        }
+
+        // Project Step 3: Update the clock every second (1000 milliseconds)
+        setInterval(updateClock, 1000);
+        
+        // Call the function once to initialize the clock immediately without waiting for the first interval
+        updateClock();
+    </script>
+</body>
+</html>
